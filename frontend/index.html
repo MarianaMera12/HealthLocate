@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthLocate · Nova Scotia</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✚</span>
+      <div>
+        <h1>HealthLocate</h1>
+        <p>Nova Scotia · Community Health Context</p>
+      </div>
+    </div>
+    <div class="topbar-tag">Patient Profile Tool</div>
+  </header>
+
+  <main class="layout">
+    <!-- Panel de búsqueda -->
+    <section class="search-panel card">
+      <h2>Buscar dirección del paciente</h2>
+      <p class="muted">Ingresa el número cívico y la calle en Nova Scotia.</p>
+
+      <form id="searchForm">
+        <label>
+          Número cívico
+          <input type="number" id="civic" placeholder="6281" required />
+        </label>
+        <label>
+          Calle
+          <input type="text" id="street" placeholder="Jennings" required />
+        </label>
+        <button type="submit" id="searchBtn">
+          <span class="btn-text">Buscar</span>
+        </button>
+      </form>
+
+      <div id="status" class="status"></div>
+    </section>
+
+    <!-- Resultados -->
+    <section class="results">
+      <div id="emptyState" class="card empty-state">
+        <span class="empty-icon">🗺️</span>
+        <p>Los resultados del perfil comunitario aparecerán aquí.</p>
+      </div>
+
+      <div id="resultContent" class="result-content hidden">
+        <div class="card result-header">
+          <div>
+            <span class="badge badge-ok">Dirección encontrada</span>
+            <h3 id="resAddress"></h3>
+            <p class="muted" id="resCommunity"></p>
+          </div>
+          <div class="ce-chip">
+            <span class="ce-label">Community Environ</span>
+            <span class="ce-name" id="resCeName"></span>
+            <span class="ce-id" id="resCeId"></span>
+          </div>
+        </div>
+
+        <div class="result-grid">
+          <div class="card map-card">
+            <h4>📍 Ubicación</h4>
+            <div id="map"></div>
+          </div>
+
+          <div class="card profile-card">
+            <h4>👤 Perfil comunitario</h4>
+            <div id="indicators" class="indicators"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Datos: NS Health Atlas · Statistics Canada · NS Open Data — Solo contexto geográfico y social.
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
