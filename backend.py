@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 HealthLocate — Backend API (FastAPI)
-Reemplaza la app de Streamlit. Mantiene la misma lógica de geopandas:
-address → punto → Community Environ → indicadores del Health Atlas.
+Replaces the Streamlit app. Keeps the same geopandas logic:
+address -> point -> Community Environ -> Health Atlas indicators.
 """
 from pathlib import Path
 from io import StringIO
@@ -20,60 +20,60 @@ SHAPEFILE = BASE_DIR / "shapefiles" / "ComEnviron.shp"
 ATLAS_CSV = BASE_DIR / "data" / "NSHealthAtlasDataEnvirons.csv"
 ADDRESS_URL = "https://data.novascotia.ca/api/views/tntn-er5g/rows.csv?accessType=DOWNLOAD"
 
-# Shortlist de indicadores (Tarea 3) -> etiqueta legible + grupo
+# Indicator shortlist (Task 3) -> readable label + group
 INDICATORS = {
-    # Demografía
-    "pop_total_all":        ("Población total", "Demografía", "{:,.0f}"),
-    "medage_total":         ("Edad mediana", "Demografía", "{:.1f}"),
-    "pctpop-pct_total_65":  ("% población ≥65 años", "Demografía", "{:.1%}"),
-    # Privación material y social
-    "msi-score2021":        ("Índice MSI (quintil 1-5)", "Privación", "{:.0f}"),
-    "msi-lowincome":        ("% hogares bajo ingreso", "Privación", "{:.1%}"),
-    "msi-unemploymentrate": ("Tasa de desempleo", "Privación", "{:.1%}"),
-    "foc-licoaftax":        ("% bajo línea de pobreza", "Privación", "{:.1%}"),
-    # Vivienda
-    "foc-subhous":          ("% vivienda inadecuada", "Vivienda", "{:.1%}"),
-    "foc-renters":          ("% arrendatarios", "Vivienda", "{:.1%}"),
-    # Condiciones sociales
-    "scs-score2021":        ("Condiciones sociales (quintil)", "Social", "{:.0f}"),
-    "scs-loneparent":       ("% familias monoparentales", "Social", "{:.1%}"),
-    "sds-score2021":        ("Diversidad social (quintil)", "Social", "{:.0f}"),
-    # Ambiente físico
-    "green-pwndvi":         ("Cobertura vegetal (NDVI)", "Ambiente", "{:.2f}"),
-    "aq-meanpm25":          ("PM2.5 promedio (μg/m³)", "Ambiente", "{:.2f}"),
-    "aq-radon":             ("Nivel de radón (categoría)", "Ambiente", "{:.0f}"),
-    # Comportamental
-    "smk-curr_male":        ("Tabaquismo — hombres", "Comportamiento", "{:.1%}"),
-    "smk-curr_female":      ("Tabaquismo — mujeres", "Comportamiento", "{:.1%}"),
+    # Demographics
+    "pop_total_all":        ("Total population", "Demographics", "{:,.0f}"),
+    "medage_total":         ("Median age", "Demographics", "{:.1f}"),
+    "pctpop-pct_total_65":  ("Population aged 65+", "Demographics", "{:.1%}"),
+    # Material and social deprivation
+    "msi-score2021":        ("MSI index (quintile 1-5)", "Deprivation", "{:.0f}"),
+    "msi-lowincome":        ("Low-income households", "Deprivation", "{:.1%}"),
+    "msi-unemploymentrate": ("Unemployment rate", "Deprivation", "{:.1%}"),
+    "foc-licoaftax":        ("Below poverty line", "Deprivation", "{:.1%}"),
+    # Housing
+    "foc-subhous":          ("Inadequate housing", "Housing", "{:.1%}"),
+    "foc-renters":          ("Renter households", "Housing", "{:.1%}"),
+    # Social conditions
+    "scs-score2021":        ("Social conditions (quintile)", "Social", "{:.0f}"),
+    "scs-loneparent":       ("Lone-parent families", "Social", "{:.1%}"),
+    "sds-score2021":        ("Social diversity (quintile)", "Social", "{:.0f}"),
+    # Physical environment
+    "green-pwndvi":         ("Green cover (NDVI)", "Environment", "{:.2f}"),
+    "aq-meanpm25":          ("Mean PM2.5 (μg/m³)", "Environment", "{:.2f}"),
+    "aq-radon":             ("Radon level (category)", "Environment", "{:.0f}"),
+    # Behavioural
+    "smk-curr_male":        ("Current smokers — male", "Behaviour", "{:.1%}"),
+    "smk-curr_female":      ("Current smokers — female", "Behaviour", "{:.1%}"),
 }
 
 
 def load_data():
-    print("Cargando direcciones de NS Open Data...")
+    print("Loading addresses from NS Open Data...")
     resp = requests.get(ADDRESS_URL, timeout=120)
     addresses = pd.read_csv(StringIO(resp.text), low_memory=False)
 
-    print("Cargando shapefile de Community Environs...")
+    print("Loading Community Environs shapefile...")
     gdf = gpd.read_file(SHAPEFILE)
 
-    print("Cargando indicadores del Health Atlas...")
+    print("Loading Health Atlas indicators...")
     atlas = pd.read_csv(ATLAS_CSV)
     atlas = atlas[atlas["region"] == "community-environs"].copy()
     atlas["id"] = atlas["id"].astype(int)
 
-    print("Datos cargados.")
+    print("Data loaded.")
     return addresses, gdf, atlas
 
 
 app = FastAPI(title="HealthLocate API")
 
-# Se cargan una sola vez al iniciar
+# Loaded once at startup
 DF, GDF, ATLAS = load_data()
 
 
 @app.get("/api/search")
 def search(civic: int, street: str):
-    """Busca una dirección y devuelve su Community Environ + indicadores."""
+    """Look up an address and return its Community Environ + indicators."""
     match = DF[
         (DF["CIVICNUM"] == civic)
         & (DF["STRNAME"].str.upper() == street.upper())
@@ -84,10 +84,10 @@ def search(civic: int, street: str):
     row = match.iloc[0]
     lat, lng, comm = float(row["LAT"]), float(row["LONG"]), str(row["COMM"])
 
-    # Spatial join: punto -> Community Environ
-    punto = gpd.GeoDataFrame([{"geometry": Point(lng, lat)}], crs="EPSG:4326")
-    punto = punto.to_crs(GDF.crs)
-    ce = gpd.sjoin(punto, GDF, how="left", predicate="within").iloc[0]
+    # Spatial join: point -> Community Environ
+    point = gpd.GeoDataFrame([{"geometry": Point(lng, lat)}], crs="EPSG:4326")
+    point = point.to_crs(GDF.crs)
+    ce = gpd.sjoin(point, GDF, how="left", predicate="within").iloc[0]
 
     if pd.isna(ce["id"]):
         raise HTTPException(status_code=404, detail="No Community Environ for this point.")
@@ -95,7 +95,7 @@ def search(civic: int, street: str):
     ce_id = int(ce["id"])
     ce_name = str(ce["name"]).title()
 
-    # Indicadores del Health Atlas para esa CE
+    # Health Atlas indicators for that CE
     atlas_row = ATLAS[ATLAS["id"] == ce_id]
     indicators = []
     if not atlas_row.empty:
@@ -122,6 +122,6 @@ def search(civic: int, street: str):
     }
 
 
-# Sirve el frontend (index.html, style.css, app.js) desde la raíz.
-# Se monta al final: las rutas /api/* tienen prioridad por estar definidas antes.
+# Serves the frontend (index.html, style.css, app.js) from the root.
+# Mounted last: /api/* routes take priority because they are defined first.
 app.mount("/", StaticFiles(directory=BASE_DIR / "frontend", html=True), name="frontend")

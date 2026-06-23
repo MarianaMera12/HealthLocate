@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -22,39 +22,39 @@
   </header>
 
   <main class="layout">
-    <!-- Panel de búsqueda -->
+    <!-- Search panel -->
     <section class="search-panel card">
-      <h2>Buscar dirección del paciente</h2>
-      <p class="muted">Ingresa el número cívico y la calle en Nova Scotia.</p>
+      <h2>Search patient address</h2>
+      <p class="muted">Enter the civic number and street name in Nova Scotia.</p>
 
       <form id="searchForm">
         <label>
-          Número cívico
-          <input type="number" id="civic" placeholder="6281" required />
+          Civic number
+          <input type="number" id="civic" placeholder="5303" required />
         </label>
         <label>
-          Calle
-          <input type="text" id="street" placeholder="Jennings" required />
+          Street name
+          <input type="text" id="street" placeholder="Morris" required />
         </label>
         <button type="submit" id="searchBtn">
-          <span class="btn-text">Buscar</span>
+          <span class="btn-text">Search</span>
         </button>
       </form>
 
       <div id="status" class="status"></div>
     </section>
 
-    <!-- Resultados -->
+    <!-- Results -->
     <section class="results">
       <div id="emptyState" class="card empty-state">
         <span class="empty-icon">🗺️</span>
-        <p>Los resultados del perfil comunitario aparecerán aquí.</p>
+        <p>Community profile results will appear here.</p>
       </div>
 
       <div id="resultContent" class="result-content hidden">
         <div class="card result-header">
           <div>
-            <span class="badge badge-ok">Dirección encontrada</span>
+            <span class="badge badge-ok">Address found</span>
             <h3 id="resAddress"></h3>
             <p class="muted" id="resCommunity"></p>
           </div>
@@ -67,12 +67,12 @@
 
         <div class="result-grid">
           <div class="card map-card">
-            <h4>📍 Ubicación</h4>
+            <h4>📍 Location</h4>
             <div id="map"></div>
           </div>
 
           <div class="card profile-card">
-            <h4>👤 Perfil comunitario</h4>
+            <h4>👤 Community profile</h4>
             <div id="indicators" class="indicators"></div>
           </div>
         </div>
@@ -81,7 +81,7 @@
   </main>
 
   <footer class="footer">
-    Datos: NS Health Atlas · Statistics Canada · NS Open Data — Solo contexto geográfico y social.
+    Data: NS Health Atlas · Statistics Canada · NS Open Data — Geographic and social context only.
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

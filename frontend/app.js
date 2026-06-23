@@ -13,7 +13,7 @@ form.addEventListener("submit", async (e) => {
   if (!civic || !street) return;
 
   setLoading(true);
-  status.textContent = "Buscando dirección...";
+  status.textContent = "Searching address...";
   status.className = "status loading";
 
   try {
@@ -22,7 +22,7 @@ form.addEventListener("submit", async (e) => {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "No se encontró la dirección.");
+      throw new Error(err.detail || "Address not found.");
     }
 
     const data = await res.json();
@@ -41,7 +41,7 @@ form.addEventListener("submit", async (e) => {
 
 function setLoading(loading) {
   btn.disabled = loading;
-  btn.querySelector(".btn-text").textContent = loading ? "Buscando..." : "Buscar";
+  btn.querySelector(".btn-text").textContent = loading ? "Searching..." : "Search";
 }
 
 function renderResult(data) {
@@ -62,11 +62,11 @@ function renderIndicators(indicators) {
   container.innerHTML = "";
 
   if (!indicators || indicators.length === 0) {
-    container.innerHTML = '<p class="muted">No hay indicadores disponibles para esta CE.</p>';
+    container.innerHTML = '<p class="muted">No indicators available for this CE.</p>';
     return;
   }
 
-  // Agrupar por categoría conservando el orden
+  // Group by category preserving order
   const groups = {};
   const order = [];
   for (const ind of indicators) {
@@ -94,18 +94,32 @@ function renderIndicators(indicators) {
 
 function renderMap(lat, lng, label) {
   if (!map) {
-    map = L.map("map").setView([lat, lng], 15);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap",
-      maxZoom: 19,
+    map = L.map("map", { zoomControl: true, scrollWheelZoom: true }).setView([lat, lng], 15);
+
+    // Modern, clean basemap (CartoDB Voyager)
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      attribution: '© OpenStreetMap · © CARTO',
+      subdomains: "abcd",
+      maxZoom: 20,
     }).addTo(map);
   } else {
     map.setView([lat, lng], 15);
   }
 
   if (marker) map.removeLayer(marker);
-  marker = L.marker([lat, lng]).addTo(map).bindPopup(label).openPopup();
 
-  // Leaflet necesita recalcular tamaño cuando el contenedor estaba oculto
+  // Styled circular marker instead of the default pin
+  marker = L.circleMarker([lat, lng], {
+    radius: 10,
+    color: "#ffffff",
+    weight: 3,
+    fillColor: "#1565a8",
+    fillOpacity: 1,
+  })
+    .addTo(map)
+    .bindPopup(label)
+    .openPopup();
+
+  // Leaflet needs to recalculate size when the container was hidden
   setTimeout(() => map.invalidateSize(), 100);
 }
