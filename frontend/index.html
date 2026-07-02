@@ -25,21 +25,17 @@
     <!-- Search panel -->
     <section class="search-panel card">
       <h2>Search patient address</h2>
-      <p class="muted">Enter the civic number and street name in Nova Scotia.</p>
+      <p class="muted">Start typing an address in Nova Scotia and pick it from the list.</p>
 
-      <form id="searchForm">
-        <label>
-          Civic number
-          <input type="number" id="civic" placeholder="5303" required />
-        </label>
-        <label>
-          Street name
-          <input type="text" id="street" placeholder="Morris" required />
-        </label>
-        <button type="submit" id="searchBtn">
-          <span class="btn-text">Search</span>
-        </button>
-      </form>
+      <div class="autocomplete">
+        <label for="addressInput">Address</label>
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="addressInput" autocomplete="off"
+                 placeholder="Type a number or street…" />
+        </div>
+        <ul id="suggestions" class="suggestions hidden"></ul>
+      </div>
 
       <div id="status" class="status"></div>
     </section>
@@ -71,10 +67,16 @@
             <div id="map"></div>
           </div>
 
-          <div class="card profile-card">
-            <h4>👤 Community profile</h4>
-            <div id="indicators" class="indicators"></div>
+          <div class="card radar-card">
+            <h4>🕸️ Community profile · 4 key categories</h4>
+            <p class="muted radar-sub">Score on a 1–5 scale (5 = well above the Nova Scotia average).</p>
+            <canvas id="radarChart"></canvas>
           </div>
+        </div>
+
+        <div class="card breakdown-card">
+          <h4>📊 Category breakdown</h4>
+          <div id="categories" class="categories"></div>
         </div>
       </div>
     </section>
@@ -85,6 +87,7 @@
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
