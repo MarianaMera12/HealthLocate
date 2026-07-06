@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 import geopandas as gpd
 import requests
+import shapely
 from shapely.geometry import Point
 
 from fastapi import FastAPI, HTTPException
@@ -18,6 +19,8 @@ from fastapi.staticfiles import StaticFiles
 BASE_DIR = Path(__file__).parent
 SHAPEFILE = BASE_DIR / "shapefiles" / "ComEnviron.shp"
 ATLAS_CSV = BASE_DIR / "data" / "NSHealthAtlasDataEnvirons.csv"
+# Can-ALE (active-living / active transport) aggregated to CE level — see build script
+CANALE_CSV = BASE_DIR / "data" / "canale_by_ce.csv"
 # NS Civic Addresses — SODA JSON endpoint (queried on demand)
 SODA_URL = "https://data.novascotia.ca/resource/tntn-er5g.json"
 
@@ -28,7 +31,9 @@ SODA_URL = "https://data.novascotia.ca/resource/tntn-er5g.json"
 CATEGORIES = [
     {
         "name": "Income & Economic",
-        "score_field": "msi-score2021",
+        "color": "#e74c3c",
+        "score_from": "msi-score2021",
+        "direction": "higher_worse",
         "indicators": [
             ("msi-score2021",       "Overall score (quintile 1-5)", "{:.0f}"),
             ("msi-unemploymentrate", "Unemployment rate",           "{:.1%}"),
@@ -39,7 +44,9 @@ CATEGORIES = [
     },
     {
         "name": "Social Vulnerability",
-        "score_field": "scs-score2021",
+        "color": "#e8743b",
+        "score_from": "scs-score2021",
+        "direction": "higher_worse",
         "indicators": [
             ("scs-score2021",  "Overall score (quintile 1-5)",       "{:.0f}"),
             ("scs-alone",      "Living alone",                       "{:.1%}"),
@@ -49,7 +56,9 @@ CATEGORIES = [
     },
     {
         "name": "Community Diversity",
-        "score_field": "sds-score2021",
+        "color": "#1f9d57",
+        "score_from": "sds-score2021",
+        "direction": "neutral",
         "indicators": [
             ("sds-score2021",       "Overall score (quintile 1-5)",     "{:.0f}"),
             ("sds-recentimmigrant", "Recent immigrants",                "{:.1%}"),
@@ -59,13 +68,28 @@ CATEGORIES = [
     },
     {
         "name": "Environment",
-        "score_field": None,  # no official score -> computed composite (see below)
+        "color": "#2b87d1",
+        "score_from": "env",  # no official score -> computed composite (see below)
+        "direction": "higher_worse",
         "indicators": [
             ("green-pwndvi", "Greenness (NDVI)",           "{:.2f}"),
             ("aq-meanpm25",  "Air — PM2.5 (μg/m³)",        "{:.2f}"),
             ("aq-meanno2",   "Air — NO₂",                  "{:.2f}"),
             ("well-arsenic", "Water — arsenic (% wells)",  "{:.1%}"),
             ("well-uranium", "Water — uranium (% wells)",  "{:.1%}"),
+        ],
+    },
+    {
+        "name": "Transport (Active Living)",
+        "color": "#8e44ad",
+        "score_from": "canale",  # Can-ALE, aggregated to CE level
+        "direction": "higher_better",
+        "indicators": [
+            ("_canale_score", "Active Living class (1-5)", "{:.1f}"),
+            ("_canale_index", "ALE index (z-score)",       "{:.2f}"),
+            ("_canale_int",   "Intersection density",      "{:.1f}"),
+            ("_canale_dwel",  "Dwelling density",          "{:.1f}"),
+            ("_canale_poi",   "Points of interest",        "{:.0f}"),
         ],
     },
 ]
@@ -89,6 +113,22 @@ def load_data():
     atlas = atlas[atlas["region"] == "community-environs"].copy()
     atlas["id"] = atlas["id"].astype(int)
 
+    # Merge Can-ALE (Transport) indicators, aggregated to CE level
+    if CANALE_CSV.exists():
+        canale = pd.read_csv(CANALE_CSV).rename(columns={
+            "ce_id": "id",
+            "ale_class": "_canale_score",
+            "ale_index": "_canale_index",
+            "int_density": "_canale_int",
+            "dwel_density": "_canale_dwel",
+            "poi_count": "_canale_poi",
+        })
+        keep = ["id", "_canale_score", "_canale_index", "_canale_int", "_canale_dwel", "_canale_poi"]
+        atlas = atlas.merge(canale[keep], on="id", how="left")
+        print("Can-ALE Transport data merged.")
+    else:
+        print("Can-ALE file not found — Transport will show as pending.")
+
     # Precompute an Environment score (1-5) by percentile-ranking each CE
     # against all others. Higher score = worse environment.
     ranks = pd.DataFrame(index=atlas.index)
@@ -101,10 +141,30 @@ def load_data():
     return gdf, atlas
 
 
+def compute_ns_outline(gdf, min_area=0.001):
+    """Dissolve all CE polygons into the Nova Scotia silhouette (GeoJSON, WGS84).
+
+    Tiny islands are dropped (area < `min_area` deg²) to keep a clean, light
+    outline: mainland + Cape Breton + a few sizeable islands.
+    """
+    g = gdf.to_crs(4326)
+    try:
+        geom = g.geometry.union_all()
+    except AttributeError:  # older geopandas/shapely
+        geom = g.geometry.unary_union
+
+    parts = list(getattr(geom, "geoms", [geom]))
+    kept = [p for p in parts if p.area >= min_area]
+    geom = shapely.geometry.MultiPolygon(kept) if len(kept) > 1 else kept[0]
+    geom = geom.simplify(0.004, preserve_topology=True)
+    return shapely.geometry.mapping(geom)
+
+
 app = FastAPI(title="HealthLocate API")
 
 # Loaded once at startup (addresses are no longer bulk-downloaded)
 GDF, ATLAS = load_data()
+NS_OUTLINE = compute_ns_outline(GDF)
 
 
 LEVEL_LABELS = {
@@ -124,6 +184,35 @@ def _fmt(fmt: str, val) -> str:
         return fmt.format(val)
     except (ValueError, TypeError):
         return str(val)
+
+
+# Semantic status for the clinical reading of each category
+STATUS_COLORS = {
+    "favorable": "#1f9d57",   # good for health
+    "average":   "#d98a00",   # around the provincial average
+    "attention": "#d14343",   # may need attention
+    "neutral":   "#5b6b7b",   # descriptive, not good/bad
+    "pending":   "#8e44ad",   # data not yet available
+}
+STATUS_LABELS = {
+    "favorable": "Favorable",
+    "average":   "Around NS average",
+    "attention": "Needs attention",
+    "neutral":   "Descriptive",
+    "pending":   "Data pending",
+}
+
+
+def _status(level, direction):
+    """Map a 1-5 level + direction to a clinical status key."""
+    if level is None:
+        return "pending"
+    if direction == "neutral":
+        return "neutral"
+    if direction == "higher_better":
+        return {1: "attention", 2: "attention", 3: "average", 4: "favorable", 5: "favorable"}[level]
+    # higher_worse (deprivation, vulnerability, environmental risk)
+    return {1: "favorable", 2: "favorable", 3: "average", 4: "attention", 5: "attention"}[level]
 
 
 def _soql_safe(text: str) -> str:
@@ -226,28 +315,49 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
     if not atlas_row.empty:
         a = atlas_row.iloc[0]
         for cat in CATEGORIES:
-            # Category score (1-5): official quintile field, or the computed env score
-            if cat["score_field"]:
-                raw_score = a.get(cat["score_field"])
-            else:
+            # Category score (1-5): official quintile field, computed env score,
+            # or Can-ALE (pending -> column absent -> NaN -> shown as pending)
+            sf = cat["score_from"]
+            if sf == "env":
                 raw_score = a.get("_env_score")
+            elif sf == "canale":
+                raw_score = a.get("_canale_score")
+            else:
+                raw_score = a.get(sf)
 
             score = None if pd.isna(raw_score) else round(float(raw_score), 1)
-            level = None if score is None else int(round(score))
-            level = None if level is None else max(1, min(5, level))
+            level = None if score is None else max(1, min(5, int(round(score))))
+            pending = sf == "canale" and score is None
 
             indicators = [
                 {"label": label, "value": _fmt(fmt, a.get(field))}
                 for field, label, fmt in cat["indicators"]
             ]
 
+            status = "pending" if pending else _status(level, cat["direction"])
+
             categories.append({
                 "name": cat["name"],
+                "color": STATUS_COLORS[status],          # semantic color (favorable/attention/...)
+                "status": status,
+                "status_label": STATUS_LABELS[status],
                 "score": score,
                 "level": level,
-                "level_label": LEVEL_LABELS.get(level, "—"),
+                "level_label": "Data pending (Can-ALE)" if pending else LEVEL_LABELS.get(level, "—"),
+                "pending": pending,
                 "indicators": indicators,
             })
+
+    population = "—"
+    if not atlas_row.empty:
+        population = _fmt("{:,.0f}", atlas_row.iloc[0].get("pop_total_all"))
+
+    # CE polygon (simplified, WGS84) so the map can highlight the community
+    ce_geom = None
+    ce_row = GDF[GDF["id"] == ce_id]
+    if not ce_row.empty:
+        g = ce_row.to_crs(4326).geometry.iloc[0].simplify(0.0008, preserve_topology=True)
+        ce_geom = shapely.geometry.mapping(g)
 
     return {
         "address": address,
@@ -256,8 +366,16 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
         "lng": lng,
         "ce_id": ce_id,
         "ce_name": ce_name,
+        "population": population,
+        "ce_geometry": ce_geom,
         "categories": categories,
     }
+
+
+@app.get("/api/ns-outline")
+def ns_outline():
+    """Nova Scotia silhouette as GeoJSON (for the small locator map)."""
+    return NS_OUTLINE
 
 
 # Serves the frontend (index.html, style.css, app.js) from the root.

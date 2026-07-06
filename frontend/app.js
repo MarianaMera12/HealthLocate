@@ -1,10 +1,40 @@
-let map, marker, radarChart;
+let nsMap, nsMarker, radarChart, nsOutlineGeo, nsOutlineLayer, ceLayer;
+
+// Preload the Nova Scotia outline and draw the silhouette immediately
+fetch("/api/ns-outline")
+  .then((r) => r.json())
+  .then((gj) => { nsOutlineGeo = gj; initNsMap(); })
+  .catch(() => {});
+
+// Build the static silhouette map on load (dot is added once an address is picked)
+function initNsMap() {
+  if (nsMap || !document.getElementById("nsMap")) return;
+  nsMap = L.map("nsMap", {
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    touchZoom: false,
+  });
+  // Land silhouette over an ocean-colored background
+  nsOutlineLayer = L.geoJSON(nsOutlineGeo, {
+    style: { color: "#9cc3e0", weight: 1, fillColor: "#f6fafd", fillOpacity: 1 },
+  }).addTo(nsMap);
+  nsMap.fitBounds(nsOutlineLayer.getBounds(), { padding: [6, 6] });
+  setTimeout(() => nsMap.invalidateSize(), 100);
+}
 
 const input = document.getElementById("addressInput");
 const suggestionsEl = document.getElementById("suggestions");
 const status = document.getElementById("status");
 const emptyState = document.getElementById("emptyState");
 const resultContent = document.getElementById("resultContent");
+
+// Print / export the current profile
+document.getElementById("printBtn").addEventListener("click", () => window.print());
 
 let debounceTimer = null;
 let activeIndex = -1;
@@ -77,7 +107,7 @@ function renderSuggestions(items) {
     const li = document.createElement("li");
     li.className = "suggestion";
     li.innerHTML =
-      `<span class="sug-icon">📍</span>` +
+      `<span class="sug-dot"></span>` +
       `<span class="sug-text">` +
         `<span class="sug-address">${item.address}</span>` +
         `<span class="sug-community">${item.community}</span>` +
@@ -112,7 +142,7 @@ function hideSuggestions() {
 async function selectItem(item) {
   input.value = item.label;
   hideSuggestions();
-  status.textContent = "Loading community profile...";
+  status.innerHTML = '<span class="spinner"></span> Loading community profile…';
   status.className = "status loading";
 
   try {
@@ -140,58 +170,73 @@ async function selectItem(item) {
 function renderResult(data) {
   emptyState.classList.add("hidden");
   resultContent.classList.remove("hidden");
+  // Re-trigger the fade-in animation on each new result
+  resultContent.classList.remove("fade-in");
+  void resultContent.offsetWidth;
+  resultContent.classList.add("fade-in");
 
   document.getElementById("resAddress").textContent = data.address;
   document.getElementById("resCommunity").textContent = data.community;
   document.getElementById("resCeName").textContent = data.ce_name;
-  document.getElementById("resCeId").textContent = "ID: " + data.ce_id;
+  document.getElementById("resCeId").textContent = "CE " + data.ce_id;
+  document.getElementById("resPop").textContent = data.population || "—";
 
   const categories = data.categories || [];
-  renderRadar(categories);
-  renderCategories(categories);
-  renderMap(data.lat, data.lng, data.address);
+  // Guard each renderer so one failure doesn't blank the whole result
+  try { renderRadar(categories); } catch (e) { console.error("radar:", e); }
+  try { renderCategories(categories); } catch (e) { console.error("categories:", e); }
+  try { renderNsMap(data.lat, data.lng, data.ce_geometry); } catch (e) { console.error("map:", e); }
 }
 
-// Color for a 1-5 level (green = low, amber = mid, red = high)
-function levelColor(level) {
-  return {
-    1: "#1f9d57", 2: "#7cb342", 3: "#d98a00", 4: "#e8743b", 5: "#d14343",
-  }[level] || "#6b7e91";
+// Add transparency to a hex color
+function withAlpha(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
+// Polar area (rose) chart: one colored petal per category, radius = score
 function renderRadar(categories) {
   const labels = categories.map((c) => c.name);
   const scores = categories.map((c) => c.score ?? 0);
+  const colors = categories.map((c) => c.color);
 
   if (radarChart) radarChart.destroy();
 
   radarChart = new Chart(document.getElementById("radarChart"), {
-    type: "radar",
+    type: "polarArea",
     data: {
       labels,
       datasets: [{
-        label: "Community score",
         data: scores,
-        fill: true,
-        backgroundColor: "rgba(21, 101, 168, 0.18)",
-        borderColor: "#1565a8",
+        backgroundColor: colors.map((c) => withAlpha(c, 0.75)),
+        borderColor: "#ffffff",
         borderWidth: 2,
-        pointBackgroundColor: "#1565a8",
-        pointBorderColor: "#fff",
-        pointRadius: 4,
       }],
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { font: { size: 12 }, color: "#1a2b3c", padding: 14, usePointStyle: true },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const cat = categories[ctx.dataIndex];
+              return cat.pending ? "Data pending (Can-ALE)" : `Score: ${cat.score} / 5`;
+            },
+          },
+        },
+      },
       scales: {
         r: {
-          min: 0,
-          max: 5,
+          beginAtZero: true,
+          suggestedMax: 5,
           ticks: { stepSize: 1, backdropColor: "transparent", color: "#6b7e91" },
           grid: { color: "#e2e9f0" },
           angleLines: { color: "#e2e9f0" },
-          pointLabels: { font: { size: 12, weight: "600" }, color: "#1a2b3c" },
         },
       },
     },
@@ -209,9 +254,10 @@ function renderCategories(categories) {
 
   for (const cat of categories) {
     const card = document.createElement("div");
-    card.className = "cat-card";
+    card.className = "flip-card" + (cat.pending ? " pending" : "");
+    // Tap to flip (for touch devices; hover handles desktop)
+    card.addEventListener("click", () => card.classList.toggle("flipped"));
 
-    const color = levelColor(cat.level);
     const scoreText = cat.score == null ? "—" : cat.score;
 
     let rows = "";
@@ -220,44 +266,39 @@ function renderCategories(categories) {
     }
 
     card.innerHTML =
-      `<div class="cat-head">` +
-        `<span class="cat-name">${cat.name}</span>` +
-        `<span class="cat-score" style="background:${color}">${scoreText}</span>` +
-      `</div>` +
-      `<div class="cat-level" style="color:${color}">${cat.level_label}</div>` +
-      `<div class="cat-indicators">${rows}</div>`;
+      `<div class="flip-inner">` +
+        `<div class="flip-front" style="background:${cat.color}">` +
+          `<span class="fc-name">${cat.name}</span>` +
+          `<div><div class="fc-score">${scoreText}</div>` +
+          `<div class="fc-level">${cat.status_label || cat.level_label}</div></div>` +
+          `<span class="fc-hint">Hover for details</span>` +
+        `</div>` +
+        `<div class="flip-back">` +
+          `<div class="fb-title" style="color:${cat.color}">${cat.name}</div>` +
+          `<div class="fb-rows">${rows}</div>` +
+        `</div>` +
+      `</div>`;
     container.appendChild(card);
   }
 }
 
-function renderMap(lat, lng, label) {
-  if (!map) {
-    map = L.map("map", { zoomControl: true, scrollWheelZoom: true }).setView([lat, lng], 15);
+// Small province-view map: Nova Scotia silhouette + a location dot
+function renderNsMap(lat, lng, ceGeometry) {
+  if (!nsMap) initNsMap();
+  if (!nsMap) return;
 
-    // Modern, clean basemap (CartoDB Voyager)
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      attribution: "© OpenStreetMap · © CARTO",
-      subdomains: "abcd",
-      maxZoom: 20,
-    }).addTo(map);
-  } else {
-    map.setView([lat, lng], 15);
-  }
-
-  if (marker) map.removeLayer(marker);
-
-  // Styled circular marker instead of the default pin
-  marker = L.circleMarker([lat, lng], {
-    radius: 10,
+  if (nsMarker) nsMap.removeLayer(nsMarker);
+  nsMarker = L.circleMarker([lat, lng], {
+    radius: 6,
     color: "#ffffff",
-    weight: 3,
-    fillColor: "#1565a8",
+    weight: 2,
+    fillColor: "#d14343",
     fillOpacity: 1,
-  })
-    .addTo(map)
-    .bindPopup(label)
-    .openPopup();
+  }).addTo(nsMap);
 
-  // Leaflet needs to recalculate size when the container was hidden
-  setTimeout(() => map.invalidateSize(), 100);
+  // Keep the whole province in view (compact locator)
+  if (nsOutlineLayer) {
+    nsMap.fitBounds(nsOutlineLayer.getBounds(), { padding: [6, 6] });
+  }
+  setTimeout(() => nsMap.invalidateSize(), 100);
 }

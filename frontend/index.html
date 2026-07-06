@@ -7,87 +7,108 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=15" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="logo">✚</span>
+      <span class="logo">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </span>
       <div>
         <h1>HealthLocate</h1>
         <p>Nova Scotia · Community Health Context</p>
       </div>
     </div>
-    <div class="topbar-tag">Patient Profile Tool</div>
+    <div class="topbar-actions">
+      <button id="printBtn" class="btn-print" type="button" title="Print / export profile">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
+        </svg>
+        Print profile
+      </button>
+      <div class="topbar-tag">Patient Profile Tool</div>
+    </div>
   </header>
 
   <main class="layout">
-    <!-- Search panel -->
-    <section class="search-panel card">
-      <h2>Search patient address</h2>
-      <p class="muted">Start typing an address in Nova Scotia and pick it from the list.</p>
-
-      <div class="autocomplete">
-        <label for="addressInput">Address</label>
-        <div class="search-box">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="addressInput" autocomplete="off"
-                 placeholder="Type a number or street…" />
+    <!-- TOP ROW: wide search bar + compact location card -->
+    <section class="top-row">
+      <div class="card search-panel">
+        <h2>Search patient address</h2>
+        <p class="muted">Start typing an address in Nova Scotia and pick it from the list.</p>
+        <div class="autocomplete">
+          <div class="search-box">
+            <span class="search-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+              </svg>
+            </span>
+            <input type="text" id="addressInput" autocomplete="off"
+                   placeholder="Type a number or street" />
+          </div>
+          <ul id="suggestions" class="suggestions hidden"></ul>
         </div>
-        <ul id="suggestions" class="suggestions hidden"></ul>
+        <div id="status" class="status"></div>
       </div>
 
-      <div id="status" class="status"></div>
+      <div class="card location-card">
+        <span class="block-label">Patient location</span>
+        <div class="loc-body">
+          <div id="nsMap" class="mini-map"></div>
+          <div class="loc-info">
+            <div class="loc-head">
+              <span class="ce-name-lg" id="resCeName">—</span>
+              <span class="ce-id-sm" id="resCeId"></span>
+            </div>
+            <p class="loc-community"><span id="resCommunity">Search an address</span></p>
+            <p class="loc-address muted" id="resAddress"></p>
+            <div class="loc-stats">
+              <div class="stat"><span class="stat-label">Population</span><span class="stat-val" id="resPop">—</span></div>
+              <div class="stat"><span class="stat-label">Census</span><span class="stat-val">2021</span></div>
+              <div class="stat"><span class="stat-label">Updated</span><span class="stat-val">Apr 2025</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <!-- Results -->
-    <section class="results">
-      <div id="emptyState" class="card empty-state">
-        <span class="empty-icon">🗺️</span>
-        <p>Community profile results will appear here.</p>
+    <!-- BOTTOM ROW: chart + category flip cards -->
+    <section class="bottom-row card">
+      <div id="emptyState" class="empty-state">
+        <p>Search an address to see the community profile.</p>
       </div>
 
       <div id="resultContent" class="result-content hidden">
-        <div class="card result-header">
-          <div>
-            <span class="badge badge-ok">Address found</span>
-            <h3 id="resAddress"></h3>
-            <p class="muted" id="resCommunity"></p>
-          </div>
-          <div class="ce-chip">
-            <span class="ce-label">Community Environ</span>
-            <span class="ce-name" id="resCeName"></span>
-            <span class="ce-id" id="resCeId"></span>
-          </div>
-        </div>
-
-        <div class="result-grid">
-          <div class="card map-card">
-            <h4>📍 Location</h4>
-            <div id="map"></div>
-          </div>
-
-          <div class="card radar-card">
-            <h4>🕸️ Community profile · 4 key categories</h4>
-            <p class="muted radar-sub">Score on a 1–5 scale (5 = well above the Nova Scotia average).</p>
+        <div class="radar-col">
+          <span class="block-label">Community profile · 5 categories</span>
+          <div class="radar-wrap">
             <canvas id="radarChart"></canvas>
           </div>
+          <div class="legend">
+            <span class="legend-title">How to read</span>
+            <div class="legend-items">
+              <span class="legend-item"><span class="dot" style="background:#1f9d57"></span>Favorable</span>
+              <span class="legend-item"><span class="dot" style="background:#d98a00"></span>Around NS average</span>
+              <span class="legend-item"><span class="dot" style="background:#d14343"></span>Needs attention</span>
+              <span class="legend-item"><span class="dot" style="background:#5b6b7b"></span>Descriptive</span>
+            </div>
+            <p class="legend-note">Scores are 1–5, relative to the Nova Scotia average.</p>
+          </div>
         </div>
 
-        <div class="card breakdown-card">
-          <h4>📊 Category breakdown</h4>
+        <div class="cats-col">
+          <span class="block-label">Category breakdown · hover a card to flip</span>
           <div id="categories" class="categories"></div>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="footer">
-    Data: NS Health Atlas · Statistics Canada · NS Open Data — Geographic and social context only.
-  </footer>
-
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=15"></script>
 </body>
 </html>
