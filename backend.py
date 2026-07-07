@@ -79,19 +79,6 @@ CATEGORIES = [
             ("well-uranium", "Water — uranium (% wells)",  "{:.1%}"),
         ],
     },
-    {
-        "name": "Transport (Active Living)",
-        "color": "#8e44ad",
-        "score_from": "canale",  # Can-ALE, aggregated to CE level
-        "direction": "higher_better",
-        "indicators": [
-            ("_canale_score", "Active Living class (1-5)", "{:.1f}"),
-            ("_canale_index", "ALE index (z-score)",       "{:.2f}"),
-            ("_canale_int",   "Intersection density",      "{:.1f}"),
-            ("_canale_dwel",  "Dwelling density",          "{:.1f}"),
-            ("_canale_poi",   "Points of interest",        "{:.0f}"),
-        ],
-    },
 ]
 
 # Environment composite: direction of each field (+1 = higher is worse, -1 = higher is better)
@@ -186,33 +173,30 @@ def _fmt(fmt: str, val) -> str:
         return str(val)
 
 
-# Semantic status for the clinical reading of each category
+# Score-based status: 1-2 favorable, 3 moderate, 4-5 needs attention
 STATUS_COLORS = {
-    "favorable": "#1f9d57",   # good for health
-    "average":   "#d98a00",   # around the provincial average
-    "attention": "#d14343",   # may need attention
-    "neutral":   "#5b6b7b",   # descriptive, not good/bad
-    "pending":   "#8e44ad",   # data not yet available
+    "favorable": "#1f9d57",   # green
+    "moderate":  "#d98a00",   # orange
+    "attention": "#d14343",   # red
+    "pending":   "#5b6b7b",   # data not yet available
 }
 STATUS_LABELS = {
     "favorable": "Favorable",
-    "average":   "Around NS average",
+    "moderate":  "Moderate",
     "attention": "Needs attention",
-    "neutral":   "Descriptive",
     "pending":   "Data pending",
 }
 
 
-def _status(level, direction):
-    """Map a 1-5 level + direction to a clinical status key."""
+def _status(level):
+    """Map a 1-5 level to a status key (uniform, score-based)."""
     if level is None:
         return "pending"
-    if direction == "neutral":
-        return "neutral"
-    if direction == "higher_better":
-        return {1: "attention", 2: "attention", 3: "average", 4: "favorable", 5: "favorable"}[level]
-    # higher_worse (deprivation, vulnerability, environmental risk)
-    return {1: "favorable", 2: "favorable", 3: "average", 4: "attention", 5: "attention"}[level]
+    if level <= 2:
+        return "favorable"
+    if level == 3:
+        return "moderate"
+    return "attention"
 
 
 def _soql_safe(text: str) -> str:
@@ -334,7 +318,7 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
                 for field, label, fmt in cat["indicators"]
             ]
 
-            status = "pending" if pending else _status(level, cat["direction"])
+            status = "pending" if pending else _status(level)
 
             categories.append({
                 "name": cat["name"],
@@ -349,8 +333,18 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
             })
 
     population = "—"
+    community_info = []
     if not atlas_row.empty:
-        population = _fmt("{:,.0f}", atlas_row.iloc[0].get("pop_total_all"))
+        a = atlas_row.iloc[0]
+        population = _fmt("{:,.0f}", a.get("pop_total_all"))
+        community_info = [
+            {"label": "Population",    "value": population},
+            {"label": "Census",        "value": "2021"},
+            {"label": "Median age",    "value": _fmt("{:.0f} years", a.get("medage_total"))},
+            {"label": "No family MD",   "value": _fmt("{:.1%}", a.get("foc-nhs"))},
+            {"label": "Median income", "value": _fmt("${:,.0f}", a.get("foc-medinc"))},
+            {"label": "Renters",       "value": _fmt("{:.1%}", a.get("foc-renters"))},
+        ]
 
     # CE polygon (simplified, WGS84) so the map can highlight the community
     ce_geom = None
@@ -367,6 +361,7 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
         "ce_id": ce_id,
         "ce_name": ce_name,
         "population": population,
+        "community_info": community_info,
         "ce_geometry": ce_geom,
         "categories": categories,
     }

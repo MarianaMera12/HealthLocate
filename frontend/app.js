@@ -34,7 +34,26 @@ const emptyState = document.getElementById("emptyState");
 const resultContent = document.getElementById("resultContent");
 
 // Print / export the current profile
-document.getElementById("printBtn").addEventListener("click", () => window.print());
+document.getElementById("printBtn").addEventListener("click", () => {
+  // Capture the fully-rendered chart as an image for the print sheet
+  if (radarChart) {
+    document.getElementById("psChart").src = radarChart.toBase64Image();
+  }
+  window.print();
+});
+
+// Collapse / expand panels
+document.querySelectorAll(".collapse-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const panel = document.getElementById(btn.dataset.target);
+    panel.classList.toggle("collapsed");
+    // Let the layout settle, then resize map / chart
+    setTimeout(() => {
+      if (nsMap) nsMap.invalidateSize();
+      if (radarChart) radarChart.resize();
+    }, 320);
+  });
+});
 
 let debounceTimer = null;
 let activeIndex = -1;
@@ -179,13 +198,37 @@ function renderResult(data) {
   document.getElementById("resCommunity").textContent = data.community;
   document.getElementById("resCeName").textContent = data.ce_name;
   document.getElementById("resCeId").textContent = "CE " + data.ce_id;
-  document.getElementById("resPop").textContent = data.population || "—";
+  renderCommunityInfo(data.community_info || []);
 
   const categories = data.categories || [];
   // Guard each renderer so one failure doesn't blank the whole result
   try { renderRadar(categories); } catch (e) { console.error("radar:", e); }
   try { renderCategories(categories); } catch (e) { console.error("categories:", e); }
   try { renderNsMap(data.lat, data.lng, data.ce_geometry); } catch (e) { console.error("map:", e); }
+  try { fillPrintSummary(data, categories); } catch (e) { console.error("print:", e); }
+}
+
+// Build the print-only summary sheet
+function fillPrintSummary(data, categories) {
+  document.getElementById("psCeName").textContent = data.ce_name;
+  document.getElementById("psCeId").textContent = "CE " + data.ce_id;
+  document.getElementById("psLoc").textContent = `${data.community} · ${data.address}`;
+  const pop = (data.community_info.find((r) => r.label === "Population") || {}).value || data.population || "—";
+  document.getElementById("psPop").textContent = `Population: ${pop}  |  Census: 2021`;
+
+  document.getElementById("psCats").innerHTML = categories
+    .map((c) => {
+      const score = c.score == null ? "—" : c.score;
+      return `<div class="ps-cat-row">` +
+        `<span class="ps-cat-name">${c.name}</span>` +
+        `<span class="ps-cat-score" style="color:${c.color}">${score}</span>` +
+        `<span class="ps-cat-status" style="color:${c.color}">${c.status_label || c.level_label}</span>` +
+        `</div>`;
+    })
+    .join("");
+
+  document.getElementById("psFoot").textContent =
+    "Scores 1–5 relative to the Nova Scotia average · Apr 2025";
 }
 
 // Add transparency to a hex color
@@ -194,7 +237,7 @@ function withAlpha(hex, a) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-// Polar area (rose) chart: one colored petal per category, radius = score
+// Spider (radar) chart: 4 category scores on a 1-5 web
 function renderRadar(categories) {
   const labels = categories.map((c) => c.name);
   const scores = categories.map((c) => c.score ?? 0);
@@ -203,47 +246,61 @@ function renderRadar(categories) {
   if (radarChart) radarChart.destroy();
 
   radarChart = new Chart(document.getElementById("radarChart"), {
-    type: "polarArea",
+    type: "radar",
     data: {
       labels,
       datasets: [{
+        label: "Community score",
         data: scores,
-        backgroundColor: colors.map((c) => withAlpha(c, 0.75)),
-        borderColor: "#ffffff",
+        fill: true,
+        backgroundColor: "rgba(21, 101, 168, 0.16)",
+        borderColor: "#1565a8",
         borderWidth: 2,
+        pointBackgroundColor: colors,
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
       }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: {
-          position: "bottom",
-          labels: { font: { size: 12 }, color: "#1a2b3c", padding: 14, usePointStyle: true },
-        },
+        legend: { display: false },
         tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const cat = categories[ctx.dataIndex];
-              return cat.pending ? "Data pending (Can-ALE)" : `Score: ${cat.score} / 5`;
-            },
-          },
+          callbacks: { label: (ctx) => `Score: ${categories[ctx.dataIndex].score} / 5` },
         },
       },
       scales: {
         r: {
-          beginAtZero: true,
-          suggestedMax: 5,
+          min: 0,
+          max: 5,
           ticks: { stepSize: 1, backdropColor: "transparent", color: "#6b7e91" },
           grid: { color: "#e2e9f0" },
           angleLines: { color: "#e2e9f0" },
+          pointLabels: { font: { size: 13, weight: "600" }, color: "#1a2b3c" },
         },
       },
     },
   });
 }
 
+function renderCommunityInfo(rows) {
+  const el = document.getElementById("communityInfo");
+  if (!rows.length) {
+    el.innerHTML = '<p class="muted">No community indicators available.</p>';
+    return;
+  }
+  el.innerHTML = rows
+    .map((r) => `<div class="ci-row"><span class="ci-label">${r.label}</span><span class="ci-value">${r.value}</span></div>`)
+    .join("");
+}
+
+let currentCategories = [];
+
 function renderCategories(categories) {
+  currentCategories = categories;
   const container = document.getElementById("categories");
   container.innerHTML = "";
 
@@ -252,35 +309,48 @@ function renderCategories(categories) {
     return;
   }
 
-  for (const cat of categories) {
+  categories.forEach((cat, i) => {
     const card = document.createElement("div");
-    card.className = "flip-card" + (cat.pending ? " pending" : "");
-    // Tap to flip (for touch devices; hover handles desktop)
-    card.addEventListener("click", () => card.classList.toggle("flipped"));
+    card.className = "cat-card";
+    card.style.borderTopColor = cat.color;
+    card.addEventListener("click", () => openModal(i));
 
     const scoreText = cat.score == null ? "—" : cat.score;
-
-    let rows = "";
-    for (const ind of cat.indicators) {
-      rows += `<div class="ind-row"><span class="ind-label">${ind.label}</span><span class="ind-value">${ind.value}</span></div>`;
-    }
-
     card.innerHTML =
-      `<div class="flip-inner">` +
-        `<div class="flip-front" style="background:${cat.color}">` +
-          `<span class="fc-name">${cat.name}</span>` +
-          `<div><div class="fc-score">${scoreText}</div>` +
-          `<div class="fc-level">${cat.status_label || cat.level_label}</div></div>` +
-          `<span class="fc-hint">Hover for details</span>` +
-        `</div>` +
-        `<div class="flip-back">` +
-          `<div class="fb-title" style="color:${cat.color}">${cat.name}</div>` +
-          `<div class="fb-rows">${rows}</div>` +
-        `</div>` +
-      `</div>`;
+      `<div class="cat-head">` +
+        `<span class="cat-name">${cat.name}</span>` +
+        `<span class="cat-score" style="background:${cat.color}">${scoreText}</span>` +
+      `</div>` +
+      `<div class="cat-status" style="color:${cat.color}">${cat.status_label || cat.level_label}</div>` +
+      `<span class="cat-more">View details</span>`;
     container.appendChild(card);
-  }
+  });
 }
+
+// ---------- Category detail modal ----------
+const modal = document.getElementById("modal");
+
+function openModal(index) {
+  const cat = currentCategories[index];
+  if (!cat) return;
+  document.getElementById("modalTitle").textContent = cat.name;
+  document.getElementById("modalSub").textContent = cat.status_label || cat.level_label;
+  const badge = document.getElementById("modalBadge");
+  badge.textContent = cat.score == null ? "—" : cat.score;
+  badge.style.background = cat.color;
+  document.getElementById("modalSub").style.color = cat.color;
+
+  document.getElementById("modalRows").innerHTML = cat.indicators
+    .map((ind) => `<div class="ind-row"><span class="ind-label">${ind.label}</span><span class="ind-value">${ind.value}</span></div>`)
+    .join("");
+
+  modal.classList.remove("hidden");
+}
+
+function closeModal() { modal.classList.add("hidden"); }
+document.getElementById("modalClose").addEventListener("click", closeModal);
+modal.querySelector(".modal-backdrop").addEventListener("click", closeModal);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 // Small province-view map: Nova Scotia silhouette + a location dot
 function renderNsMap(lat, lng, ceGeometry) {
