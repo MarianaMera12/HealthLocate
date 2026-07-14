@@ -4,10 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HealthLocate · Nova Scotia</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=19" />
+  <link rel="stylesheet" href="/style.css?v=25" />
 </head>
 <body>
   <header class="topbar">
@@ -43,25 +42,22 @@
         </button>
       </div>
       <div class="panel-body">
-        <h2>Search patient address</h2>
-        <p class="muted">Start typing an address in Nova Scotia and pick it from the list.</p>
+        <h2 class="search-title">Search patient address</h2>
+        <p class="search-sub">Enter a civic address in Nova Scotia to view the community health profile.</p>
         <div class="autocomplete">
           <div class="search-box">
             <span class="search-icon">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
                 <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
               </svg>
             </span>
-            <input type="text" id="addressInput" autocomplete="off" placeholder="Type a number or street" />
+            <input type="text" id="addressInput" autocomplete="off" placeholder="Start typing an address in Nova Scotia..." />
           </div>
           <ul id="suggestions" class="suggestions hidden"></ul>
         </div>
         <div id="status" class="status"></div>
 
-        <span class="block-label mt">Patient location</span>
-        <div id="nsMap" class="mini-map"></div>
-
-        <div class="loc-info">
+        <div class="loc-info mt">
           <div class="loc-head">
             <span class="ce-name-lg" id="resCeName">—</span>
             <span class="ce-id-sm" id="resCeId"></span>
@@ -72,9 +68,19 @@
 
         <hr class="divider" />
 
-        <span class="block-label">Patient community info</span>
+        <span class="block-label">Community at a glance</span>
         <div id="communityInfo" class="community-info">
           <p class="muted">Search an address to load community indicators.</p>
+        </div>
+
+        <div class="evidence-box">
+          <span class="eb-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </span>
+          <div>
+            <div class="eb-title">Evidence for better care</div>
+            <p class="eb-text">A patient's community context — income, social ties, and environment — shapes health outcomes. Use it to spot barriers and tailor recommendations.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -93,23 +99,27 @@
         </div>
 
         <div id="resultContent" class="result-content hidden">
-          <div class="radar-col">
-            <span class="block-label">Community profile · 4 categories</span>
-            <div class="radar-wrap"><canvas id="radarChart"></canvas></div>
-            <div class="legend">
-              <span class="legend-title">How to read</span>
-              <div class="legend-items">
-                <span class="legend-item"><span class="dot" style="background:#1f9d57"></span>Favorable (1–2)</span>
-                <span class="legend-item"><span class="dot" style="background:#d98a00"></span>Moderate (3)</span>
-                <span class="legend-item"><span class="dot" style="background:#d14343"></span>Needs attention (4–5)</span>
-              </div>
-              <p class="legend-note">Scores are 1–5, relative to the Nova Scotia average.</p>
-            </div>
-          </div>
+          <span class="block-label">Community profile</span>
+          <div id="scoreBars" class="score-bars"></div>
 
           <div class="cats-col">
             <span class="block-label">Category breakdown · click a card for details</span>
             <div id="categories" class="categories"></div>
+          </div>
+
+          <div class="scores-explainer">
+            <div class="se-title">What do these scores mean?</div>
+            <div class="se-items">
+              <div class="se-item"><span class="se-dot" style="background:#1f9d57"></span><b>4–5 Favorable</b> — better than the NS average</div>
+              <div class="se-item"><span class="se-dot" style="background:#d98a00"></span><b>3 Moderate</b> — around the NS average</div>
+              <div class="se-item"><span class="se-dot" style="background:#d14343"></span><b>1–2 Needs attention</b> — below the NS average</div>
+            </div>
+          </div>
+
+          <div class="phase2-card">
+            <span class="p2-badge">Coming next · Phase 2</span>
+            <div class="p2-title">Social Prescribing</div>
+            <p class="p2-text">Match patients to nearby community resources and services based on their community profile.</p>
           </div>
         </div>
       </div>
@@ -142,14 +152,11 @@
     </div>
     <hr class="ps-hr" />
     <div class="ps-section">COMMUNITY PROFILE</div>
-    <img id="psChart" class="ps-chart" alt="Community profile spider chart" />
     <div id="psCats" class="ps-cats"></div>
     <hr class="ps-hr" />
     <div class="ps-foot" id="psFoot"></div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="/app.js?v=19"></script>
+  <script src="/app.js?v=25"></script>
 </body>
 </html>

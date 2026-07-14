@@ -31,9 +31,9 @@ SODA_URL = "https://data.novascotia.ca/resource/tntn-er5g.json"
 CATEGORIES = [
     {
         "name": "Income & Economic",
-        "color": "#e74c3c",
+        "icon": "income",
+        "scored": True,
         "score_from": "msi-score2021",
-        "direction": "higher_worse",
         "indicators": [
             ("msi-score2021",       "Overall score (quintile 1-5)", "{:.0f}"),
             ("msi-unemploymentrate", "Unemployment rate",           "{:.1%}"),
@@ -44,9 +44,9 @@ CATEGORIES = [
     },
     {
         "name": "Social Vulnerability",
-        "color": "#e8743b",
+        "icon": "social",
+        "scored": True,
         "score_from": "scs-score2021",
-        "direction": "higher_worse",
         "indicators": [
             ("scs-score2021",  "Overall score (quintile 1-5)",       "{:.0f}"),
             ("scs-alone",      "Living alone",                       "{:.1%}"),
@@ -56,9 +56,9 @@ CATEGORIES = [
     },
     {
         "name": "Community Diversity",
-        "color": "#1f9d57",
+        "icon": "diversity",
+        "scored": True,
         "score_from": "sds-score2021",
-        "direction": "neutral",
         "indicators": [
             ("sds-score2021",       "Overall score (quintile 1-5)",     "{:.0f}"),
             ("sds-recentimmigrant", "Recent immigrants",                "{:.1%}"),
@@ -67,10 +67,25 @@ CATEGORIES = [
         ],
     },
     {
+        "name": "Transit / Active Living",
+        "icon": "transit",
+        "scored": True,
+        "score_from": "canale",  # Can-ALE, aggregated to CE level
+        "indicators": [
+            ("_canale_score", "Active Living class (1-5)", "{:.1f}"),
+            ("_canale_index", "ALE index (z-score)",       "{:.2f}"),
+            ("_canale_int",   "Intersection density",      "{:.1f}"),
+            ("_canale_dwel",  "Dwelling density",          "{:.1f}"),
+            ("_canale_poi",   "Points of interest",        "{:.0f}"),
+        ],
+    },
+    {
+        # Environment has no official composite yet (Saeed is computing the EQI).
+        # Show the individual indicators instead of a single 1-5 number.
         "name": "Environment",
-        "color": "#2b87d1",
-        "score_from": "env",  # no official score -> computed composite (see below)
-        "direction": "higher_worse",
+        "icon": "environment",
+        "scored": False,
+        "score_from": None,
         "indicators": [
             ("green-pwndvi", "Greenness (NDVI)",           "{:.2f}"),
             ("aq-meanpm25",  "Air — PM2.5 (μg/m³)",        "{:.2f}"),
@@ -81,14 +96,8 @@ CATEGORIES = [
     },
 ]
 
-# Environment composite: direction of each field (+1 = higher is worse, -1 = higher is better)
-ENV_FIELDS = {
-    "green-pwndvi": -1,
-    "aq-meanpm25": +1,
-    "aq-meanno2": +1,
-    "well-arsenic": +1,
-    "well-uranium": +1,
-}
+# Environment currently has no composite score — the EQI is still being computed.
+# Its individual indicators (greenness, air, water) are shown instead.
 
 
 def load_data():
@@ -116,13 +125,6 @@ def load_data():
     else:
         print("Can-ALE file not found — Transport will show as pending.")
 
-    # Precompute an Environment score (1-5) by percentile-ranking each CE
-    # against all others. Higher score = worse environment.
-    ranks = pd.DataFrame(index=atlas.index)
-    for field, direction in ENV_FIELDS.items():
-        r = atlas[field].rank(pct=True)
-        ranks[field] = r if direction == +1 else (1 - r)
-    atlas["_env_score"] = 1 + 4 * ranks.mean(axis=1)  # 0..1 -> 1..5
 
     print("Data loaded. Addresses are fetched on demand from the SODA API.")
     return gdf, atlas
@@ -189,14 +191,14 @@ STATUS_LABELS = {
 
 
 def _status(level):
-    """Map a 1-5 level to a status key (uniform, score-based)."""
+    """Map a 1-5 level to a status key. Higher score = better (favorable)."""
     if level is None:
         return "pending"
-    if level <= 2:
-        return "favorable"
+    if level >= 4:
+        return "favorable"      # 4-5 good
     if level == 3:
-        return "moderate"
-    return "attention"
+        return "moderate"       # 3 moderate
+    return "attention"          # 1-2 needs attention
 
 
 def _soql_safe(text: str) -> str:
@@ -299,36 +301,40 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
     if not atlas_row.empty:
         a = atlas_row.iloc[0]
         for cat in CATEGORIES:
-            # Category score (1-5): official quintile field, computed env score,
-            # or Can-ALE (pending -> column absent -> NaN -> shown as pending)
-            sf = cat["score_from"]
-            if sf == "env":
-                raw_score = a.get("_env_score")
-            elif sf == "canale":
-                raw_score = a.get("_canale_score")
-            else:
-                raw_score = a.get(sf)
-
-            score = None if pd.isna(raw_score) else round(float(raw_score), 1)
-            level = None if score is None else max(1, min(5, int(round(score))))
-            pending = sf == "canale" and score is None
-
             indicators = [
                 {"label": label, "value": _fmt(fmt, a.get(field))}
                 for field, label, fmt in cat["indicators"]
             ]
 
-            status = "pending" if pending else _status(level)
+            if not cat.get("scored", True):
+                # No composite score yet (e.g. Environment EQI is pending)
+                categories.append({
+                    "name": cat["name"],
+                    "icon": cat["icon"],
+                    "scored": False,
+                    "color": STATUS_COLORS["pending"],
+                    "status": "pending",
+                    "status_label": "Indicators only",
+                    "score": None,
+                    "indicators": indicators,
+                })
+                continue
+
+            sf = cat["score_from"]
+            raw_score = a.get("_canale_score") if sf == "canale" else a.get(sf)
+            score = None if pd.isna(raw_score) else round(float(raw_score), 1)
+            level = None if score is None else max(1, min(5, int(round(score))))
+            status = _status(level)
 
             categories.append({
                 "name": cat["name"],
-                "color": STATUS_COLORS[status],          # semantic color (favorable/attention/...)
+                "icon": cat["icon"],
+                "scored": True,
+                "color": STATUS_COLORS[status],          # semantic color by score
                 "status": status,
                 "status_label": STATUS_LABELS[status],
                 "score": score,
                 "level": level,
-                "level_label": "Data pending (Can-ALE)" if pending else LEVEL_LABELS.get(level, "—"),
-                "pending": pending,
                 "indicators": indicators,
             })
 
@@ -338,12 +344,12 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
         a = atlas_row.iloc[0]
         population = _fmt("{:,.0f}", a.get("pop_total_all"))
         community_info = [
-            {"label": "Population",    "value": population},
-            {"label": "Census",        "value": "2021"},
-            {"label": "Median age",    "value": _fmt("{:.0f} years", a.get("medage_total"))},
-            {"label": "No family MD",   "value": _fmt("{:.1%}", a.get("foc-nhs"))},
-            {"label": "Median income", "value": _fmt("${:,.0f}", a.get("foc-medinc"))},
-            {"label": "Renters",       "value": _fmt("{:.1%}", a.get("foc-renters"))},
+            {"icon": "users",    "label": "Population",    "value": population},
+            {"icon": "calendar", "label": "Census",        "value": "2021"},
+            {"icon": "person",   "label": "Median age",    "value": _fmt("{:.0f} years", a.get("medage_total"))},
+            {"icon": "medical",  "label": "No family MD",  "value": _fmt("{:.1%}", a.get("foc-nhs"))},
+            {"icon": "income",   "label": "Median income", "value": _fmt("${:,.0f}", a.get("foc-medinc"))},
+            {"icon": "home",     "label": "Renters",       "value": _fmt("{:.1%}", a.get("foc-renters"))},
         ]
 
     # CE polygon (simplified, WGS84) so the map can highlight the community

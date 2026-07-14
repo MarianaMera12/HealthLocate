@@ -1,30 +1,29 @@
-let nsMap, nsMarker, radarChart, nsOutlineGeo, nsOutlineLayer, ceLayer;
+// Professional line icons per category (inherit currentColor)
+const ICONS = {
+  income: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  social: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  diversity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  environment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>',
+  transit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  // Community-at-a-glance + location icons
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  medical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+};
+function iconSvg(key) { return ICONS[key] || ""; }
 
-// Preload the Nova Scotia outline and draw the silhouette immediately
-fetch("/api/ns-outline")
-  .then((r) => r.json())
-  .then((gj) => { nsOutlineGeo = gj; initNsMap(); })
-  .catch(() => {});
-
-// Build the static silhouette map on load (dot is added once an address is picked)
-function initNsMap() {
-  if (nsMap || !document.getElementById("nsMap")) return;
-  nsMap = L.map("nsMap", {
-    zoomControl: false,
-    attributionControl: false,
-    dragging: false,
-    scrollWheelZoom: false,
-    doubleClickZoom: false,
-    boxZoom: false,
-    keyboard: false,
-    touchZoom: false,
-  });
-  // Land silhouette over an ocean-colored background
-  nsOutlineLayer = L.geoJSON(nsOutlineGeo, {
-    style: { color: "#9cc3e0", weight: 1, fillColor: "#f6fafd", fillOpacity: 1 },
-  }).addTo(nsMap);
-  nsMap.fitBounds(nsOutlineLayer.getBounds(), { padding: [6, 6] });
-  setTimeout(() => nsMap.invalidateSize(), 100);
+// Circular score indicator (ring fills proportional to score/5)
+function scoreRing(score, color) {
+  if (score == null) return '<span class="ring-na">—</span>';
+  const pct = (score / 5) * 100;
+  return `<svg class="score-ring" viewBox="0 0 36 36">` +
+    `<circle class="ring-bg" cx="18" cy="18" r="15.915"/>` +
+    `<circle class="ring-fg" cx="18" cy="18" r="15.915" stroke="${color}" stroke-dasharray="${pct} 100"/>` +
+    `<text class="ring-text" x="18" y="18" fill="${color}">${score}</text>` +
+    `</svg>`;
 }
 
 const input = document.getElementById("addressInput");
@@ -34,24 +33,12 @@ const emptyState = document.getElementById("emptyState");
 const resultContent = document.getElementById("resultContent");
 
 // Print / export the current profile
-document.getElementById("printBtn").addEventListener("click", () => {
-  // Capture the fully-rendered chart as an image for the print sheet
-  if (radarChart) {
-    document.getElementById("psChart").src = radarChart.toBase64Image();
-  }
-  window.print();
-});
+document.getElementById("printBtn").addEventListener("click", () => window.print());
 
 // Collapse / expand panels
 document.querySelectorAll(".collapse-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    const panel = document.getElementById(btn.dataset.target);
-    panel.classList.toggle("collapsed");
-    // Let the layout settle, then resize map / chart
-    setTimeout(() => {
-      if (nsMap) nsMap.invalidateSize();
-      if (radarChart) radarChart.resize();
-    }, 320);
+    document.getElementById(btn.dataset.target).classList.toggle("collapsed");
   });
 });
 
@@ -195,16 +182,16 @@ function renderResult(data) {
   resultContent.classList.add("fade-in");
 
   document.getElementById("resAddress").textContent = data.address;
-  document.getElementById("resCommunity").textContent = data.community;
+  document.querySelector(".loc-community").innerHTML =
+    `<span class="loc-pin">${iconSvg("pin")}</span><span id="resCommunity">${data.community}</span>`;
   document.getElementById("resCeName").textContent = data.ce_name;
   document.getElementById("resCeId").textContent = "CE " + data.ce_id;
   renderCommunityInfo(data.community_info || []);
 
   const categories = data.categories || [];
   // Guard each renderer so one failure doesn't blank the whole result
-  try { renderRadar(categories); } catch (e) { console.error("radar:", e); }
+  try { renderBars(categories, data); } catch (e) { console.error("bars:", e); }
   try { renderCategories(categories); } catch (e) { console.error("categories:", e); }
-  try { renderNsMap(data.lat, data.lng, data.ce_geometry); } catch (e) { console.error("map:", e); }
   try { fillPrintSummary(data, categories); } catch (e) { console.error("print:", e); }
 }
 
@@ -231,59 +218,25 @@ function fillPrintSummary(data, categories) {
     "Scores 1–5 relative to the Nova Scotia average · Apr 2025";
 }
 
-// Add transparency to a hex color
-function withAlpha(hex, a) {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
-}
+// Horizontal colored score bars (replaces the spider chart) for scored categories
+function renderBars(categories, data) {
+  const el = document.getElementById("scoreBars");
+  const scored = categories.filter((c) => c.scored && c.score != null);
+  const pop = (data.community_info.find((r) => r.label === "Population") || {}).value || "—";
+  const tip = `Population: ${pop} · Census 2021`;
 
-// Spider (radar) chart: 4 category scores on a 1-5 web
-function renderRadar(categories) {
-  const labels = categories.map((c) => c.name);
-  const scores = categories.map((c) => c.score ?? 0);
-  const colors = categories.map((c) => c.color);
-
-  if (radarChart) radarChart.destroy();
-
-  radarChart = new Chart(document.getElementById("radarChart"), {
-    type: "radar",
-    data: {
-      labels,
-      datasets: [{
-        label: "Community score",
-        data: scores,
-        fill: true,
-        backgroundColor: "rgba(21, 101, 168, 0.16)",
-        borderColor: "#1565a8",
-        borderWidth: 2,
-        pointBackgroundColor: colors,
-        pointBorderColor: "#ffffff",
-        pointBorderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: { label: (ctx) => `Score: ${categories[ctx.dataIndex].score} / 5` },
-        },
-      },
-      scales: {
-        r: {
-          min: 0,
-          max: 5,
-          ticks: { stepSize: 1, backdropColor: "transparent", color: "#6b7e91" },
-          grid: { color: "#e2e9f0" },
-          angleLines: { color: "#e2e9f0" },
-          pointLabels: { font: { size: 13, weight: "600" }, color: "#1a2b3c" },
-        },
-      },
-    },
-  });
+  el.innerHTML = scored
+    .map((c) => {
+      const pct = (c.score / 5) * 100;
+      return (
+        `<div class="bar-row" title="${c.name}: ${c.score}/5 · ${tip}">` +
+          `<div class="bar-label"><span class="bar-icon">${iconSvg(c.icon)}</span>${c.name}</div>` +
+          `<div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c.color}"></div></div>` +
+          `<div class="bar-score" style="color:${c.color}">${c.score}</div>` +
+        `</div>`
+      );
+    })
+    .join("");
 }
 
 function renderCommunityInfo(rows) {
@@ -293,7 +246,12 @@ function renderCommunityInfo(rows) {
     return;
   }
   el.innerHTML = rows
-    .map((r) => `<div class="ci-row"><span class="ci-label">${r.label}</span><span class="ci-value">${r.value}</span></div>`)
+    .map((r) =>
+      `<div class="ci-row">` +
+        `<span class="ci-icon">${iconSvg(r.icon)}</span>` +
+        `<span class="ci-label">${r.label}</span>` +
+        `<span class="ci-value">${r.value}</span>` +
+      `</div>`)
     .join("");
 }
 
@@ -315,12 +273,12 @@ function renderCategories(categories) {
     card.style.borderTopColor = cat.color;
     card.addEventListener("click", () => openModal(i));
 
-    const scoreText = cat.score == null ? "—" : cat.score;
     card.innerHTML =
       `<div class="cat-head">` +
-        `<span class="cat-name">${cat.name}</span>` +
-        `<span class="cat-score" style="background:${cat.color}">${scoreText}</span>` +
+        `<span class="cat-icon" style="color:${cat.color}">${iconSvg(cat.icon)}</span>` +
+        scoreRing(cat.score, cat.color) +
       `</div>` +
+      `<div class="cat-name">${cat.name}</div>` +
       `<div class="cat-status" style="color:${cat.color}">${cat.status_label || cat.level_label}</div>` +
       `<span class="cat-more">View details</span>`;
     container.appendChild(card);
@@ -351,24 +309,3 @@ function closeModal() { modal.classList.add("hidden"); }
 document.getElementById("modalClose").addEventListener("click", closeModal);
 modal.querySelector(".modal-backdrop").addEventListener("click", closeModal);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
-
-// Small province-view map: Nova Scotia silhouette + a location dot
-function renderNsMap(lat, lng, ceGeometry) {
-  if (!nsMap) initNsMap();
-  if (!nsMap) return;
-
-  if (nsMarker) nsMap.removeLayer(nsMarker);
-  nsMarker = L.circleMarker([lat, lng], {
-    radius: 6,
-    color: "#ffffff",
-    weight: 2,
-    fillColor: "#d14343",
-    fillOpacity: 1,
-  }).addTo(nsMap);
-
-  // Keep the whole province in view (compact locator)
-  if (nsOutlineLayer) {
-    nsMap.fitBounds(nsOutlineLayer.getBounds(), { padding: [6, 6] });
-  }
-  setTimeout(() => nsMap.invalidateSize(), 100);
-}
