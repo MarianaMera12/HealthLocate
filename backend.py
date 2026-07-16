@@ -19,8 +19,9 @@ from fastapi.staticfiles import StaticFiles
 BASE_DIR = Path(__file__).parent
 SHAPEFILE = BASE_DIR / "shapefiles" / "ComEnviron.shp"
 ATLAS_CSV = BASE_DIR / "data" / "NSHealthAtlasDataEnvirons.csv"
-# Can-ALE (active-living / active transport) aggregated to CE level — see build script
-CANALE_CSV = BASE_DIR / "data" / "canale_by_ce.csv"
+# Community-level Active Living Environment data (provided by Saeed, Jul 8 2026).
+# Already aggregated per CE; "ALE_index_class" is a 1-5 scale.
+ALE_CSV = BASE_DIR / "data" / "ale_community_level.csv"
 # NS Civic Addresses — SODA JSON endpoint (queried on demand)
 SODA_URL = "https://data.novascotia.ca/resource/tntn-er5g.json"
 
@@ -70,13 +71,10 @@ CATEGORIES = [
         "name": "Transit / Active Living",
         "icon": "transit",
         "scored": True,
-        "score_from": "canale",  # Can-ALE, aggregated to CE level
+        "score_from": "ale",  # community-level ALE data from Saeed
         "indicators": [
-            ("_canale_score", "Active Living class (1-5)", "{:.1f}"),
-            ("_canale_index", "ALE index (z-score)",       "{:.2f}"),
-            ("_canale_int",   "Intersection density",      "{:.1f}"),
-            ("_canale_dwel",  "Dwelling density",          "{:.1f}"),
-            ("_canale_poi",   "Points of interest",        "{:.0f}"),
+            ("_ale_index",   "Active Living index (1-5)", "{:.2f}"),
+            ("_ale_transit", "Transit index (1-5)",       "{:.2f}"),
         ],
     },
     {
@@ -109,21 +107,18 @@ def load_data():
     atlas = atlas[atlas["region"] == "community-environs"].copy()
     atlas["id"] = atlas["id"].astype(int)
 
-    # Merge Can-ALE (Transport) indicators, aggregated to CE level
-    if CANALE_CSV.exists():
-        canale = pd.read_csv(CANALE_CSV).rename(columns={
-            "ce_id": "id",
-            "ale_class": "_canale_score",
-            "ale_index": "_canale_index",
-            "int_density": "_canale_int",
-            "dwel_density": "_canale_dwel",
-            "poi_count": "_canale_poi",
+    # Merge the community-level ALE data (Transit / Active Living)
+    if ALE_CSV.exists():
+        ale = pd.read_csv(ALE_CSV).dropna(subset=["id_community"])
+        ale["id"] = ale["id_community"].astype(int)
+        ale = ale.rename(columns={
+            "ALE_index_class": "_ale_index",
+            "ALE_transit_index_class": "_ale_transit",
         })
-        keep = ["id", "_canale_score", "_canale_index", "_canale_int", "_canale_dwel", "_canale_poi"]
-        atlas = atlas.merge(canale[keep], on="id", how="left")
-        print("Can-ALE Transport data merged.")
+        atlas = atlas.merge(ale[["id", "_ale_index", "_ale_transit"]], on="id", how="left")
+        print("ALE (Transit / Active Living) data merged.")
     else:
-        print("Can-ALE file not found — Transport will show as pending.")
+        print("ALE file not found — Transit will show as pending.")
 
 
     print("Data loaded. Addresses are fetched on demand from the SODA API.")
@@ -321,7 +316,7 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
                 continue
 
             sf = cat["score_from"]
-            raw_score = a.get("_canale_score") if sf == "canale" else a.get(sf)
+            raw_score = a.get("_ale_index") if sf == "ale" else a.get(sf)
             score = None if pd.isna(raw_score) else round(float(raw_score), 1)
             level = None if score is None else max(1, min(5, int(round(score))))
             status = _status(level)
