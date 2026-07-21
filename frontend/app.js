@@ -4,7 +4,7 @@ const ICONS = {
   social: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   diversity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   environment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>',
-  transit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  transit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="4" x2="7" y2="10"/><line x1="17" y1="4" x2="17" y2="10"/><circle cx="7.5" cy="20" r="1.4"/><circle cx="16.5" cy="20" r="1.4"/></svg>',
   // Community-at-a-glance + location icons
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
@@ -31,6 +31,59 @@ const suggestionsEl = document.getElementById("suggestions");
 const status = document.getElementById("status");
 const emptyState = document.getElementById("emptyState");
 const resultContent = document.getElementById("resultContent");
+
+// ---------- Small Nova Scotia locator (clean inline SVG, no tiles/ocean) ----------
+let nsOutlineGeo = null, nsProj = null, nsPathHtml = "";
+
+fetch("/api/ns-outline")
+  .then((r) => r.json())
+  .then((gj) => { nsOutlineGeo = gj; renderNsMap(); })   // draw empty outline on load
+  .catch(() => {});
+
+// Build an equirectangular projection (corrected for latitude) + the outline path
+function buildNsProjection(geo) {
+  const polys = geo.type === "MultiPolygon" ? geo.coordinates : [geo.coordinates];
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const poly of polys) for (const ring of poly) for (const [lng, lat] of ring) {
+    if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+  }
+  const cos = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+  const project = (lng, lat) => [(lng - minLng) * cos, (maxLat - lat)];
+  const pxRange = (maxLng - minLng) * cos;
+  const pyRange = (maxLat - minLat);
+
+  let d = "";
+  for (const poly of polys) for (const ring of poly) {
+    d += "M" + ring.map(([lng, lat]) => {
+      const [x, y] = project(lng, lat);
+      return `${x.toFixed(4)} ${y.toFixed(4)}`;
+    }).join("L") + "Z";
+  }
+  nsProj = { project, pxRange, pyRange };
+  nsPathHtml = d;
+}
+
+// Draw the NS contour (+ red dot when a location is given)
+function renderNsMap(lat, lng) {
+  const el = document.getElementById("nsMap");
+  if (!el || !nsOutlineGeo) return;
+  if (!nsProj) buildNsProjection(nsOutlineGeo);
+  const { project, pxRange, pyRange } = nsProj;
+
+  let dot = "";
+  if (lat != null && lng != null) {
+    const [cx, cy] = project(lng, lat);
+    const r = pxRange * 0.02;
+    dot = `<circle cx="${cx.toFixed(4)}" cy="${cy.toFixed(4)}" r="${r}" fill="#d14343" stroke="#fff" stroke-width="${(r * 0.45).toFixed(4)}"/>`;
+  }
+
+  el.innerHTML =
+    `<svg viewBox="0 0 ${pxRange.toFixed(3)} ${pyRange.toFixed(3)}" preserveAspectRatio="xMidYMid meet" class="ns-svg">` +
+      `<path d="${nsPathHtml}" fill="#e3e8ee" stroke="#c3ccd6" stroke-width="${(pxRange * 0.004).toFixed(4)}" stroke-linejoin="round"/>` +
+      dot +
+    `</svg>`;
+}
 
 // Print / export the current profile
 document.getElementById("printBtn").addEventListener("click", () => window.print());
@@ -190,7 +243,9 @@ function renderResult(data) {
 
   const categories = data.categories || [];
   // Guard each renderer so one failure doesn't blank the whole result
-  try { renderBars(categories, data); } catch (e) { console.error("bars:", e); }
+  try { renderNsMap(data.lat, data.lng); } catch (e) { console.error("map:", e); }
+  try { renderOverall(data.overall); } catch (e) { console.error("overall:", e); }
+  try { renderBars(categories); } catch (e) { console.error("bars:", e); }
   try { renderCategories(categories); } catch (e) { console.error("categories:", e); }
   try { fillPrintSummary(data, categories); } catch (e) { console.error("print:", e); }
 }
@@ -203,36 +258,58 @@ function fillPrintSummary(data, categories) {
   const pop = (data.community_info.find((r) => r.label === "Population") || {}).value || data.population || "—";
   document.getElementById("psPop").textContent = `Population: ${pop}  |  Census: 2021`;
 
+  // Overall conclusion at the top of the print
+  const o = data.overall;
+  const psOverall = document.getElementById("psOverall");
+  if (psOverall) {
+    psOverall.innerHTML = o
+      ? `<div class="ps-overall" style="color:${o.color}">${o.headline}</div><div class="ps-overall-sub">${o.sentence}</div>`
+      : "";
+  }
+
   document.getElementById("psCats").innerHTML = categories
-    .map((c) => {
-      const score = c.score == null ? "—" : c.score;
-      return `<div class="ps-cat-row">` +
+    .map((c) =>
+      `<div class="ps-cat-row">` +
         `<span class="ps-cat-name">${c.name}</span>` +
-        `<span class="ps-cat-score" style="color:${c.color}">${score}</span>` +
-        `<span class="ps-cat-status" style="color:${c.color}">${c.status_label || c.level_label}</span>` +
-        `</div>`;
-    })
+        `<span class="ps-cat-status" style="color:${c.color}">${c.status_label}</span>` +
+      `</div>`)
     .join("");
 
   document.getElementById("psFoot").textContent =
-    "Scores 1–5 relative to the Nova Scotia average · Apr 2025";
+    "Ratings relative to the Nova Scotia average · Apr 2025";
 }
 
-// Horizontal colored score bars (replaces the spider chart) for scored categories
-function renderBars(categories, data) {
+// Big at-a-glance conclusion box (the 5-second read for the doctor)
+function renderOverall(overall) {
+  const el = document.getElementById("overallSummary");
+  if (!overall) { el.innerHTML = ""; return; }
+  el.style.borderColor = overall.color;
+  el.style.background = withAlpha(overall.color, 0.08);
+  el.innerHTML =
+    `<span class="os-dot" style="background:${overall.color}"></span>` +
+    `<div class="os-body">` +
+      `<div class="os-headline" style="color:${overall.color}">${overall.headline}</div>` +
+      `<div class="os-sentence">${overall.sentence}</div>` +
+    `</div>`;
+}
+
+function withAlpha(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+// Progress bars per scored category — fill by score, labelled qualitatively (no numbers)
+function renderBars(categories) {
   const el = document.getElementById("scoreBars");
   const scored = categories.filter((c) => c.scored && c.score != null);
-  const pop = (data.community_info.find((r) => r.label === "Population") || {}).value || "—";
-  const tip = `Population: ${pop} · Census 2021`;
-
   el.innerHTML = scored
     .map((c) => {
       const pct = (c.score / 5) * 100;
       return (
-        `<div class="bar-row" title="${c.name}: ${c.score}/5 · ${tip}">` +
-          `<div class="bar-label"><span class="bar-icon">${iconSvg(c.icon)}</span>${c.name}</div>` +
+        `<div class="bar-row">` +
+          `<div class="bar-label"><span class="bar-icon" style="color:${c.color}">${iconSvg(c.icon)}</span>${c.name}</div>` +
           `<div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c.color}"></div></div>` +
-          `<div class="bar-score" style="color:${c.color}">${c.score}</div>` +
+          `<div class="bar-status" style="color:${c.color}">${c.status_label}</div>` +
         `</div>`
       );
     })
@@ -274,12 +351,11 @@ function renderCategories(categories) {
     card.addEventListener("click", () => openModal(i));
 
     card.innerHTML =
-      `<div class="cat-head">` +
-        `<span class="cat-icon" style="color:${cat.color}">${iconSvg(cat.icon)}</span>` +
-        scoreRing(cat.score, cat.color) +
-      `</div>` +
+      `<span class="cat-icon" style="color:${cat.color}">${iconSvg(cat.icon)}</span>` +
       `<div class="cat-name">${cat.name}</div>` +
-      `<div class="cat-status" style="color:${cat.color}">${cat.status_label || cat.level_label}</div>` +
+      `<div class="cat-pill" style="color:${cat.color};background:${withAlpha(cat.color, 0.12)}">` +
+        `<span class="pill-dot" style="background:${cat.color}"></span>${cat.status_label}` +
+      `</div>` +
       `<span class="cat-more">View details</span>`;
     container.appendChild(card);
   });
@@ -292,9 +368,9 @@ function openModal(index) {
   const cat = currentCategories[index];
   if (!cat) return;
   document.getElementById("modalTitle").textContent = cat.name;
-  document.getElementById("modalSub").textContent = cat.status_label || cat.level_label;
+  document.getElementById("modalSub").textContent = cat.status_label;
   const badge = document.getElementById("modalBadge");
-  badge.textContent = cat.score == null ? "—" : cat.score;
+  badge.innerHTML = iconSvg(cat.icon);
   badge.style.background = cat.color;
   document.getElementById("modalSub").style.color = cat.color;
 

@@ -186,7 +186,7 @@ STATUS_LABELS = {
 
 
 def _status(level):
-    """Map a 1-5 level to a status key. Higher score = better (favorable)."""
+    """Map a 1-5 level to a color-status key. Higher score = better."""
     if level is None:
         return "pending"
     if level >= 4:
@@ -194,6 +194,62 @@ def _status(level):
     if level == 3:
         return "moderate"       # 3 moderate
     return "attention"          # 1-2 needs attention
+
+
+def _qual_label(level):
+    """Human, number-free label for a 1-5 level (doctors don't want the exact number)."""
+    return {5: "Excellent", 4: "Good", 3: "Moderate", 2: "Needs attention", 1: "Needs attention"}.get(level, "—")
+
+
+# Friendly phrasing for the overall one-line summary
+_FRIENDLY = {
+    "Income & Economic": "economic conditions",
+    "Social Vulnerability": "social support",
+    "Community Diversity": "community diversity",
+    "Transit / Active Living": "transportation access",
+}
+
+
+def _join(items):
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _build_overall(scored):
+    """Overall conclusion from the scored categories (the 5-second read)."""
+    levels = [c["level"] for c in scored if c["level"] is not None]
+    if not levels:
+        return None
+    mean = sum(levels) / len(levels)
+
+    if mean >= 3.5:
+        status, headline = "favorable", "Favorable community conditions"
+    elif mean >= 2.5:
+        status, headline = "moderate", "Average community conditions"
+    else:
+        status, headline = "attention", "Community barriers detected"
+
+    strengths = [_FRIENDLY.get(c["name"], c["name"]) for c in scored if (c["level"] or 0) >= 4]
+    concerns = [_FRIENDLY.get(c["name"], c["name"]) for c in scored if (c["level"] or 0) <= 2]
+
+    if concerns:
+        sentence = f"Barriers in {_join(concerns)}."
+        if strengths:
+            sentence += f" Strengths in {_join(strengths)}."
+    elif strengths:
+        sentence = f"This patient lives in an area with strong {_join(strengths)}."
+    else:
+        sentence = "Community conditions are around the provincial average."
+
+    return {
+        "status": status,
+        "color": STATUS_COLORS[status],
+        "headline": headline,
+        "sentence": sentence,
+    }
 
 
 def _soql_safe(text: str) -> str:
@@ -302,15 +358,17 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
             ]
 
             if not cat.get("scored", True):
-                # No composite score yet (e.g. Environment EQI is pending)
+                # Environment EQI is still pending — show a temporary placeholder
+                # rating (fixed) so the card looks consistent with the others.
                 categories.append({
                     "name": cat["name"],
                     "icon": cat["icon"],
                     "scored": False,
-                    "color": STATUS_COLORS["pending"],
-                    "status": "pending",
-                    "status_label": "Indicators only",
+                    "color": STATUS_COLORS["favorable"],
+                    "status": "placeholder",
+                    "status_label": "Good",          # fixed placeholder until EQI arrives
                     "score": None,
+                    "level": None,
                     "indicators": indicators,
                 })
                 continue
@@ -327,7 +385,7 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
                 "scored": True,
                 "color": STATUS_COLORS[status],          # semantic color by score
                 "status": status,
-                "status_label": STATUS_LABELS[status],
+                "status_label": _qual_label(level),      # number-free label
                 "score": score,
                 "level": level,
                 "indicators": indicators,
@@ -339,8 +397,6 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
         a = atlas_row.iloc[0]
         population = _fmt("{:,.0f}", a.get("pop_total_all"))
         community_info = [
-            {"icon": "users",    "label": "Population",    "value": population},
-            {"icon": "calendar", "label": "Census",        "value": "2021"},
             {"icon": "person",   "label": "Median age",    "value": _fmt("{:.0f} years", a.get("medage_total"))},
             {"icon": "medical",  "label": "No family MD",  "value": _fmt("{:.1%}", a.get("foc-nhs"))},
             {"icon": "income",   "label": "Median income", "value": _fmt("${:,.0f}", a.get("foc-medinc"))},
@@ -354,6 +410,8 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
         g = ce_row.to_crs(4326).geometry.iloc[0].simplify(0.0008, preserve_topology=True)
         ce_geom = shapely.geometry.mapping(g)
 
+    overall = _build_overall([c for c in categories if c.get("scored")])
+
     return {
         "address": address,
         "community": community,
@@ -364,6 +422,7 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
         "population": population,
         "community_info": community_info,
         "ce_geometry": ce_geom,
+        "overall": overall,
         "categories": categories,
     }
 

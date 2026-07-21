@@ -6,7 +6,7 @@
   <title>HealthLocate · Nova Scotia</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=25" />
+  <link rel="stylesheet" href="/style.css?v=30" />
 </head>
 <body>
   <header class="topbar">
@@ -66,6 +66,8 @@
           <p class="loc-address muted" id="resAddress"></p>
         </div>
 
+        <div id="nsMap" class="mini-map mt"></div>
+
         <hr class="divider" />
 
         <span class="block-label">Community at a glance</span>
@@ -99,20 +101,24 @@
         </div>
 
         <div id="resultContent" class="result-content hidden">
-          <span class="block-label">Community profile</span>
-          <div id="scoreBars" class="score-bars"></div>
+          <div id="overallSummary" class="overall-summary"></div>
+
+          <div class="bars-col">
+            <span class="block-label">Community health overview</span>
+            <div id="scoreBars" class="score-bars"></div>
+          </div>
 
           <div class="cats-col">
-            <span class="block-label">Category breakdown · click a card for details</span>
+            <span class="block-label">Category details · click a card for more</span>
             <div id="categories" class="categories"></div>
           </div>
 
           <div class="scores-explainer">
-            <div class="se-title">What do these scores mean?</div>
+            <div class="se-title">What do these ratings mean?</div>
             <div class="se-items">
-              <div class="se-item"><span class="se-dot" style="background:#1f9d57"></span><b>4–5 Favorable</b> — better than the NS average</div>
-              <div class="se-item"><span class="se-dot" style="background:#d98a00"></span><b>3 Moderate</b> — around the NS average</div>
-              <div class="se-item"><span class="se-dot" style="background:#d14343"></span><b>1–2 Needs attention</b> — below the NS average</div>
+              <div class="se-item"><span class="se-dot" style="background:#1f9d57"></span><b>Excellent / Good</b> — better than the NS average</div>
+              <div class="se-item"><span class="se-dot" style="background:#d98a00"></span><b>Moderate</b> — around the NS average</div>
+              <div class="se-item"><span class="se-dot" style="background:#d14343"></span><b>Needs attention</b> — below the NS average</div>
             </div>
           </div>
 
@@ -151,12 +157,13 @@
       <div class="ps-pop" id="psPop"></div>
     </div>
     <hr class="ps-hr" />
+    <div id="psOverall"></div>
     <div class="ps-section">COMMUNITY PROFILE</div>
     <div id="psCats" class="ps-cats"></div>
     <hr class="ps-hr" />
     <div class="ps-foot" id="psFoot"></div>
   </div>
 
-  <script src="/app.js?v=25"></script>
+  <script src="/app.js?v=30"></script>
 </body>
 </html>
