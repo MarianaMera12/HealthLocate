@@ -29,6 +29,8 @@ SODA_URL = "https://data.novascotia.ca/resource/tntn-er5g.json"
 # Category definitions for the radar chart + per-category breakdown.
 # Each category has a 1-5 "score" (official quintile, or computed for Environment)
 # plus a list of (field, label, format) sub-indicators.
+# Indicator tuples: (field, label, format, definition, direction)
+#   direction: "higher_worse" | "higher_better" | "neutral" (drives the traffic-light colour)
 CATEGORIES = [
     {
         "name": "Income & Economic",
@@ -36,11 +38,10 @@ CATEGORIES = [
         "scored": True,
         "score_from": "msi-score2021",
         "indicators": [
-            ("msi-score2021",       "Overall score (quintile 1-5)", "{:.0f}"),
-            ("msi-unemploymentrate", "Unemployment rate",           "{:.1%}"),
-            ("msi-incomeavginc",    "Average income",               "${:,.0f}"),
-            ("msi-incomegt30house", "Spending >30% on housing",     "{:.1%}"),
-            ("msi-educationlow",    "Low education",                "{:.1%}"),
+            ("msi-unemploymentrate", "Unemployment rate", "{:.1%}", "Share of the labour force that is unemployed.", "higher_worse"),
+            ("msi-incomeavginc",     "Average income",    "${:,.0f}", "Average individual income.", "higher_better"),
+            ("msi-incomegt30house",  "High housing cost", "{:.1%}", "Households spending over 30% of income on housing.", "higher_worse"),
+            ("msi-educationlow",     "Low education",     "{:.1%}", "Adults without a high-school diploma.", "higher_worse"),
         ],
     },
     {
@@ -49,10 +50,9 @@ CATEGORIES = [
         "scored": True,
         "score_from": "scs-score2021",
         "indicators": [
-            ("scs-score2021",  "Overall score (quintile 1-5)",       "{:.0f}"),
-            ("scs-alone",      "Living alone",                       "{:.1%}"),
-            ("scs-loneparent", "Lone-parent families",               "{:.1%}"),
-            ("scs-sdw",        "Separated, divorced, or widowed",    "{:.1%}"),
+            ("scs-alone",      "Living alone",                    "{:.1%}", "Residents who live alone.", "higher_worse"),
+            ("scs-loneparent", "Lone-parent families",            "{:.1%}", "Families led by a single parent.", "higher_worse"),
+            ("scs-sdw",        "Separated, divorced, or widowed", "{:.1%}", "Adults who are separated, divorced, or widowed.", "higher_worse"),
         ],
     },
     {
@@ -61,10 +61,9 @@ CATEGORIES = [
         "scored": True,
         "score_from": "sds-score2021",
         "indicators": [
-            ("sds-score2021",       "Overall score (quintile 1-5)",     "{:.0f}"),
-            ("sds-recentimmigrant", "Recent immigrants",                "{:.1%}"),
-            ("sds-offlanghome",     "Non-official language at home",    "{:.1%}"),
-            ("sds-moved1yr",        "Moved within the last year",       "{:.1%}"),
+            ("sds-recentimmigrant", "Recent immigrants",             "{:.1%}", "Residents who immigrated in the last 5 years.", "neutral"),
+            ("sds-offlanghome",     "Non-official language at home", "{:.1%}", "Households speaking a non-official language at home.", "neutral"),
+            ("sds-moved1yr",        "Moved within the last year",    "{:.1%}", "Residents who moved in the past year.", "neutral"),
         ],
     },
     {
@@ -73,23 +72,22 @@ CATEGORIES = [
         "scored": True,
         "score_from": "ale",  # community-level ALE data from Saeed
         "indicators": [
-            ("_ale_index",   "Active Living index (1-5)", "{:.2f}"),
-            ("_ale_transit", "Transit index (1-5)",       "{:.2f}"),
+            ("_ale_index",   "Active Living index", "{:.2f}", "Walkability / active-living environment score (1 low – 5 high).", "higher_better"),
+            ("_ale_transit", "Transit access",      "{:.2f}", "Public-transit access score (1 low – 5 high).", "higher_better"),
         ],
     },
     {
         # Environment has no official composite yet (Saeed is computing the EQI).
-        # Show the individual indicators instead of a single 1-5 number.
         "name": "Environment",
         "icon": "environment",
         "scored": False,
         "score_from": None,
         "indicators": [
-            ("green-pwndvi", "Greenness (NDVI)",           "{:.2f}"),
-            ("aq-meanpm25",  "Air — PM2.5 (μg/m³)",        "{:.2f}"),
-            ("aq-meanno2",   "Air — NO₂",                  "{:.2f}"),
-            ("well-arsenic", "Water — arsenic (% wells)",  "{:.1%}"),
-            ("well-uranium", "Water — uranium (% wells)",  "{:.1%}"),
+            ("green-pwndvi", "Greenness",       "{:.2f}", "Vegetation greenness (NDVI, 0–1). Higher is greener.", "higher_better"),
+            ("aq-meanpm25",  "Air — PM2.5",     "{:.2f}", "Average fine particulate matter (µg/m³). Lower is cleaner.", "higher_worse"),
+            ("aq-meanno2",   "Air — NO₂",       "{:.2f}", "Average nitrogen dioxide. Lower is cleaner.", "higher_worse"),
+            ("well-arsenic", "Water — arsenic", "{:.1%}", "Private wells exceeding the arsenic limit.", "higher_worse"),
+            ("well-uranium", "Water — uranium", "{:.1%}", "Private wells exceeding the uranium limit.", "higher_worse"),
         ],
     },
 ]
@@ -150,14 +148,9 @@ app = FastAPI(title="HealthLocate API")
 GDF, ATLAS = load_data()
 NS_OUTLINE = compute_ns_outline(GDF)
 
-
-LEVEL_LABELS = {
-    1: "Well below NS average",
-    2: "Below NS average",
-    3: "Around NS average",
-    4: "Above NS average",
-    5: "Well above NS average",
-}
+# Provincial mean of every indicator field, for relative ("above/below NS avg") display
+_ALL_FIELDS = {ind[0] for cat in CATEGORIES for ind in cat["indicators"]}
+NS_MEANS = {f: ATLAS[f].mean() for f in _ALL_FIELDS if f in ATLAS.columns}
 
 
 def _fmt(fmt: str, val) -> str:
@@ -194,6 +187,44 @@ def _status(level):
     if level == 3:
         return "moderate"       # 3 moderate
     return "attention"          # 1-2 needs attention
+
+
+def _letter(level):
+    """Letter grade (doctors in Toronto preferred letters over words)."""
+    if level is None:
+        return "–"
+    if level >= 4:
+        return "A"
+    if level == 3:
+        return "B"
+    return "C"
+
+
+def _relative(field, val):
+    """Where a value sits vs the provincial mean: above / below / near."""
+    m = NS_MEANS.get(field)
+    if val is None or pd.isna(val) or m is None or pd.isna(m):
+        return None, "—"
+    if m != 0 and abs(val - m) <= 0.10 * abs(m):
+        return "near", "Near NS average"
+    if val > m:
+        return "above", "Above NS average"
+    return "below", "Below NS average"
+
+
+_TONE_COLORS = {"good": "#1f9d57", "bad": "#d14343", "near": "#d98a00", "neutral": "#5b6b7b"}
+
+
+def _tone(direction, relative):
+    """Traffic-light tone for a value vs the NS average, given the indicator direction."""
+    if relative is None or direction == "neutral":
+        return "neutral", _TONE_COLORS["neutral"]
+    if relative == "near":
+        return "near", _TONE_COLORS["near"]
+    good = (relative == "above" and direction == "higher_better") or \
+           (relative == "below" and direction == "higher_worse")
+    key = "good" if good else "bad"
+    return key, _TONE_COLORS[key]
 
 
 def _qual_label(level):
@@ -352,10 +383,21 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
     if not atlas_row.empty:
         a = atlas_row.iloc[0]
         for cat in CATEGORIES:
-            indicators = [
-                {"label": label, "value": _fmt(fmt, a.get(field))}
-                for field, label, fmt in cat["indicators"]
-            ]
+            indicators = []
+            for field, label, fmt, definition, direction in cat["indicators"]:
+                raw = a.get(field)
+                rel, rel_label = _relative(field, raw)
+                tone, tone_color = _tone(direction, rel)
+                indicators.append({
+                    "label": label,
+                    "definition": definition,
+                    "value": _fmt(fmt, raw),                 # this community
+                    "ns_avg": _fmt(fmt, NS_MEANS.get(field)),  # provincial average
+                    "relative": rel,                         # above / below / near / None
+                    "relative_label": rel_label,
+                    "tone": tone,
+                    "tone_color": tone_color,
+                })
 
             if not cat.get("scored", True):
                 # Environment EQI is still pending — show a temporary placeholder
@@ -366,7 +408,8 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
                     "scored": False,
                     "color": STATUS_COLORS["favorable"],
                     "status": "placeholder",
-                    "status_label": "Good",          # fixed placeholder until EQI arrives
+                    "grade": "A",                    # fixed placeholder until EQI arrives
+                    "status_label": "Good",
                     "score": None,
                     "level": None,
                     "indicators": indicators,
@@ -385,7 +428,8 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
                 "scored": True,
                 "color": STATUS_COLORS[status],          # semantic color by score
                 "status": status,
-                "status_label": _qual_label(level),      # number-free label
+                "grade": _letter(level),                 # letter grade (no words)
+                "status_label": _qual_label(level),
                 "score": score,
                 "level": level,
                 "indicators": indicators,

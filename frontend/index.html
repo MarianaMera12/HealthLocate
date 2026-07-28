@@ -4,9 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HealthLocate · Nova Scotia</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=30" />
+  <link rel="stylesheet" href="/style.css?v=35" />
 </head>
 <body>
   <header class="topbar">
@@ -60,7 +61,6 @@
         <div class="loc-info mt">
           <div class="loc-head">
             <span class="ce-name-lg" id="resCeName">—</span>
-            <span class="ce-id-sm" id="resCeId"></span>
           </div>
           <p class="loc-community"><span id="resCommunity">Search an address</span></p>
           <p class="loc-address muted" id="resAddress"></p>
@@ -74,16 +74,6 @@
         <div id="communityInfo" class="community-info">
           <p class="muted">Search an address to load community indicators.</p>
         </div>
-
-        <div class="evidence-box">
-          <span class="eb-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          </span>
-          <div>
-            <div class="eb-title">Evidence for better care</div>
-            <p class="eb-text">A patient's community context — income, social ties, and environment — shapes health outcomes. Use it to spot barriers and tailor recommendations.</p>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -96,12 +86,31 @@
         </button>
       </div>
       <div class="panel-body">
+        <div class="evidence-box">
+          <span class="eb-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </span>
+          <div>
+            <div class="eb-title">Evidence for better care</div>
+            <p class="eb-text">A patient's community context — income, social ties, and environment — shapes health outcomes. Use it to spot barriers and tailor recommendations.</p>
+          </div>
+        </div>
+
         <div id="emptyState" class="empty-state">
           <p>Search an address to see the community profile.</p>
         </div>
 
         <div id="resultContent" class="result-content hidden">
           <div id="overallSummary" class="overall-summary"></div>
+
+          <div class="scores-explainer">
+            <div class="se-title">What do these grades mean?</div>
+            <div class="se-items">
+              <div class="se-item"><span class="se-grade" style="background:#1f9d57">A</span> Better than the NS average</div>
+              <div class="se-item"><span class="se-grade" style="background:#d98a00">B</span> Around the NS average</div>
+              <div class="se-item"><span class="se-grade" style="background:#d14343">C</span> Below the NS average</div>
+            </div>
+          </div>
 
           <div class="bars-col">
             <span class="block-label">Community health overview</span>
@@ -111,15 +120,6 @@
           <div class="cats-col">
             <span class="block-label">Category details · click a card for more</span>
             <div id="categories" class="categories"></div>
-          </div>
-
-          <div class="scores-explainer">
-            <div class="se-title">What do these ratings mean?</div>
-            <div class="se-items">
-              <div class="se-item"><span class="se-dot" style="background:#1f9d57"></span><b>Excellent / Good</b> — better than the NS average</div>
-              <div class="se-item"><span class="se-dot" style="background:#d98a00"></span><b>Moderate</b> — around the NS average</div>
-              <div class="se-item"><span class="se-dot" style="background:#d14343"></span><b>Needs attention</b> — below the NS average</div>
-            </div>
           </div>
 
           <div class="phase2-card">
@@ -148,11 +148,21 @@
     </div>
   </div>
 
+  <!-- Indicator detail popover (opens on clicking an info icon) -->
+  <div id="indPopover" class="ind-popover hidden">
+    <div class="ip-head"><span class="ip-dot" id="ipDot"></span><span class="ip-title" id="ipTitle"></span></div>
+    <div class="ip-def" id="ipDef"></div>
+    <div class="ip-rows">
+      <div class="ip-row"><span class="ip-k">This community</span><span class="ip-v" id="ipVal"></span></div>
+      <div class="ip-row"><span class="ip-k">NS average</span><span class="ip-avg" id="ipAvg"></span></div>
+    </div>
+  </div>
+
   <!-- Print-only summary (hidden on screen, shown only when printing) -->
   <div id="printSummary" class="print-only">
     <div class="ps-brand">HealthLocate — Patient Profile</div>
     <div class="ps-patient">
-      <div class="ps-name"><span id="psCeName"></span> &nbsp;|&nbsp; <span id="psCeId"></span></div>
+      <div class="ps-name"><span id="psCeName"></span></div>
       <div class="ps-loc" id="psLoc"></div>
       <div class="ps-pop" id="psPop"></div>
     </div>
@@ -164,6 +174,7 @@
     <div class="ps-foot" id="psFoot"></div>
   </div>
 
-  <script src="/app.js?v=30"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/app.js?v=35"></script>
 </body>
 </html>

@@ -12,6 +12,7 @@ const ICONS = {
   medical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
 };
 function iconSvg(key) { return ICONS[key] || ""; }
 
@@ -32,58 +33,50 @@ const status = document.getElementById("status");
 const emptyState = document.getElementById("emptyState");
 const resultContent = document.getElementById("resultContent");
 
-// ---------- Small Nova Scotia locator (clean inline SVG, no tiles/ocean) ----------
-let nsOutlineGeo = null, nsProj = null, nsPathHtml = "";
+// ---------- Neighborhood map (Leaflet, zoomed to the patient's area) ----------
+let nsMap, nsMarker, ceLayer;
 
-fetch("/api/ns-outline")
-  .then((r) => r.json())
-  .then((gj) => { nsOutlineGeo = gj; renderNsMap(); })   // draw empty outline on load
-  .catch(() => {});
-
-// Build an equirectangular projection (corrected for latitude) + the outline path
-function buildNsProjection(geo) {
-  const polys = geo.type === "MultiPolygon" ? geo.coordinates : [geo.coordinates];
-  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-  for (const poly of polys) for (const ring of poly) for (const [lng, lat] of ring) {
-    if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
-    if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
-  }
-  const cos = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
-  const project = (lng, lat) => [(lng - minLng) * cos, (maxLat - lat)];
-  const pxRange = (maxLng - minLng) * cos;
-  const pyRange = (maxLat - minLat);
-
-  let d = "";
-  for (const poly of polys) for (const ring of poly) {
-    d += "M" + ring.map(([lng, lat]) => {
-      const [x, y] = project(lng, lat);
-      return `${x.toFixed(4)} ${y.toFixed(4)}`;
-    }).join("L") + "Z";
-  }
-  nsProj = { project, pxRange, pyRange };
-  nsPathHtml = d;
+function initMap() {
+  if (nsMap || !document.getElementById("nsMap")) return;
+  nsMap = L.map("nsMap", { zoomControl: true, scrollWheelZoom: false });
+  // Clean, low-clutter street basemap (shows neighborhoods without heavy labels)
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    subdomains: "abcd", maxZoom: 19,
+    attribution: "© OpenStreetMap · © CARTO",
+  }).addTo(nsMap);
+  nsMap.setView([44.9, -63.2], 7);   // Nova Scotia overview until a search
+  setTimeout(() => nsMap.invalidateSize(), 100);
 }
 
-// Draw the NS contour (+ red dot when a location is given)
-function renderNsMap(lat, lng) {
-  const el = document.getElementById("nsMap");
-  if (!el || !nsOutlineGeo) return;
-  if (!nsProj) buildNsProjection(nsOutlineGeo);
-  const { project, pxRange, pyRange } = nsProj;
+// Zoom to the patient's community and drop the red dot
+function renderNsMap(lat, lng, ceGeometry) {
+  if (!nsMap) initMap();
+  if (!nsMap) return;
 
-  let dot = "";
-  if (lat != null && lng != null) {
-    const [cx, cy] = project(lng, lat);
-    const r = pxRange * 0.02;
-    dot = `<circle cx="${cx.toFixed(4)}" cy="${cy.toFixed(4)}" r="${r}" fill="#d14343" stroke="#fff" stroke-width="${(r * 0.45).toFixed(4)}"/>`;
+  // Subtle CE boundary for context
+  if (ceLayer) { nsMap.removeLayer(ceLayer); ceLayer = null; }
+  if (ceGeometry) {
+    ceLayer = L.geoJSON(ceGeometry, {
+      style: { color: "#1565a8", weight: 2, fillColor: "#2b87d1", fillOpacity: 0.10 },
+    }).addTo(nsMap);
   }
 
-  el.innerHTML =
-    `<svg viewBox="0 0 ${pxRange.toFixed(3)} ${pyRange.toFixed(3)}" preserveAspectRatio="xMidYMid meet" class="ns-svg">` +
-      `<path d="${nsPathHtml}" fill="#e3e8ee" stroke="#c3ccd6" stroke-width="${(pxRange * 0.004).toFixed(4)}" stroke-linejoin="round"/>` +
-      dot +
-    `</svg>`;
+  if (nsMarker) nsMap.removeLayer(nsMarker);
+  nsMarker = L.circleMarker([lat, lng], {
+    radius: 7, color: "#ffffff", weight: 2.5, fillColor: "#d14343", fillOpacity: 1,
+  }).addTo(nsMap);
+
+  // Auto-zoom to the neighborhood (level ~14); frame the CE if we have it
+  if (ceLayer) {
+    nsMap.fitBounds(ceLayer.getBounds(), { padding: [10, 10], maxZoom: 15 });
+  } else {
+    nsMap.setView([lat, lng], 14);
+  }
+  setTimeout(() => nsMap.invalidateSize(), 100);
 }
+
+// Draw the base map on load
+initMap();
 
 // Print / export the current profile
 document.getElementById("printBtn").addEventListener("click", () => window.print());
@@ -238,12 +231,11 @@ function renderResult(data) {
   document.querySelector(".loc-community").innerHTML =
     `<span class="loc-pin">${iconSvg("pin")}</span><span id="resCommunity">${data.community}</span>`;
   document.getElementById("resCeName").textContent = data.ce_name;
-  document.getElementById("resCeId").textContent = "CE " + data.ce_id;
   renderCommunityInfo(data.community_info || []);
 
   const categories = data.categories || [];
   // Guard each renderer so one failure doesn't blank the whole result
-  try { renderNsMap(data.lat, data.lng); } catch (e) { console.error("map:", e); }
+  try { renderNsMap(data.lat, data.lng, data.ce_geometry); } catch (e) { console.error("map:", e); }
   try { renderOverall(data.overall); } catch (e) { console.error("overall:", e); }
   try { renderBars(categories); } catch (e) { console.error("bars:", e); }
   try { renderCategories(categories); } catch (e) { console.error("categories:", e); }
@@ -253,7 +245,6 @@ function renderResult(data) {
 // Build the print-only summary sheet
 function fillPrintSummary(data, categories) {
   document.getElementById("psCeName").textContent = data.ce_name;
-  document.getElementById("psCeId").textContent = "CE " + data.ce_id;
   document.getElementById("psLoc").textContent = `${data.community} · ${data.address}`;
   const pop = (data.community_info.find((r) => r.label === "Population") || {}).value || data.population || "—";
   document.getElementById("psPop").textContent = `Population: ${pop}  |  Census: 2021`;
@@ -271,12 +262,12 @@ function fillPrintSummary(data, categories) {
     .map((c) =>
       `<div class="ps-cat-row">` +
         `<span class="ps-cat-name">${c.name}</span>` +
-        `<span class="ps-cat-status" style="color:${c.color}">${c.status_label}</span>` +
+        `<span class="ps-cat-status" style="color:${c.color}">Grade ${c.grade || "–"}</span>` +
       `</div>`)
     .join("");
 
   document.getElementById("psFoot").textContent =
-    "Ratings relative to the Nova Scotia average · Apr 2025";
+    "Grades: A better than · B around · C below the Nova Scotia average · Apr 2025";
 }
 
 // Big at-a-glance conclusion box (the 5-second read for the doctor)
@@ -309,7 +300,7 @@ function renderBars(categories) {
         `<div class="bar-row">` +
           `<div class="bar-label"><span class="bar-icon" style="color:${c.color}">${iconSvg(c.icon)}</span>${c.name}</div>` +
           `<div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c.color}"></div></div>` +
-          `<div class="bar-status" style="color:${c.color}">${c.status_label}</div>` +
+          `<div class="bar-grade" style="background:${c.color}">${c.grade}</div>` +
         `</div>`
       );
     })
@@ -351,11 +342,11 @@ function renderCategories(categories) {
     card.addEventListener("click", () => openModal(i));
 
     card.innerHTML =
-      `<span class="cat-icon" style="color:${cat.color}">${iconSvg(cat.icon)}</span>` +
-      `<div class="cat-name">${cat.name}</div>` +
-      `<div class="cat-pill" style="color:${cat.color};background:${withAlpha(cat.color, 0.12)}">` +
-        `<span class="pill-dot" style="background:${cat.color}"></span>${cat.status_label}` +
+      `<div class="cat-head">` +
+        `<span class="cat-icon" style="color:${cat.color}">${iconSvg(cat.icon)}</span>` +
+        `<span class="cat-grade" style="background:${cat.color}">${cat.grade}</span>` +
       `</div>` +
+      `<div class="cat-name">${cat.name}</div>` +
       `<span class="cat-more">View details</span>`;
     container.appendChild(card);
   });
@@ -368,20 +359,72 @@ function openModal(index) {
   const cat = currentCategories[index];
   if (!cat) return;
   document.getElementById("modalTitle").textContent = cat.name;
-  document.getElementById("modalSub").textContent = cat.status_label;
+  const sub = document.getElementById("modalSub");
+  sub.textContent = "Grade " + (cat.grade || "–");
   const badge = document.getElementById("modalBadge");
   badge.innerHTML = iconSvg(cat.icon);
   badge.style.background = cat.color;
-  document.getElementById("modalSub").style.color = cat.color;
+  sub.style.color = cat.color;
 
+  modalIndicators = cat.indicators;
   document.getElementById("modalRows").innerHTML = cat.indicators
-    .map((ind) => `<div class="ind-row"><span class="ind-label">${ind.label}</span><span class="ind-value">${ind.value}</span></div>`)
+    .map((ind, i) => {
+      const arrow = { above: "▲", below: "▼", near: "≈" }[ind.relative] || "";
+      const rel = ind.relative || "na";
+      return (
+        `<div class="ind-row">` +
+          `<span class="ind-label">${ind.label}` +
+            `<button class="ind-info" data-idx="${i}" title="Details">${iconSvg("info")}</button>` +
+          `</span>` +
+          `<span class="ind-rel rel-${rel}" style="color:${ind.tone_color}">${arrow} ${ind.relative_label}</span>` +
+        `</div>`
+      );
+    })
     .join("");
 
   modal.classList.remove("hidden");
 }
 
-function closeModal() { modal.classList.add("hidden"); }
+function closeModal() { modal.classList.add("hidden"); closePopover(); }
 document.getElementById("modalClose").addEventListener("click", closeModal);
 modal.querySelector(".modal-backdrop").addEventListener("click", closeModal);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closePopover(); closeModal(); } });
+
+// ---------- Indicator detail popover ----------
+let modalIndicators = [];
+const popover = document.getElementById("indPopover");
+
+document.getElementById("modalRows").addEventListener("click", (e) => {
+  const btn = e.target.closest(".ind-info");
+  if (!btn) return;
+  e.stopPropagation();
+  openPopover(modalIndicators[+btn.dataset.idx], btn);
+});
+
+function openPopover(ind, anchor) {
+  if (!ind) return;
+  document.getElementById("ipTitle").textContent = ind.label;
+  document.getElementById("ipDef").textContent = ind.definition;
+  document.getElementById("ipDot").style.background = ind.tone_color;
+  const val = document.getElementById("ipVal");
+  val.textContent = ind.value;
+  val.style.color = ind.tone_color;
+  document.getElementById("ipAvg").textContent = ind.ns_avg;
+
+  popover.classList.remove("hidden");
+  // Position under the icon, clamped to the viewport
+  const r = anchor.getBoundingClientRect();
+  const pw = popover.offsetWidth, ph = popover.offsetHeight;
+  let left = Math.min(r.left, window.innerWidth - pw - 12);
+  let top = r.bottom + 8;
+  if (top + ph > window.innerHeight - 12) top = r.top - ph - 8;
+  popover.style.left = Math.max(12, left) + "px";
+  popover.style.top = Math.max(12, top) + "px";
+}
+
+function closePopover() { popover.classList.add("hidden"); }
+document.addEventListener("click", (e) => {
+  if (!popover.classList.contains("hidden") && !e.target.closest("#indPopover") && !e.target.closest(".ind-info")) {
+    closePopover();
+  }
+});

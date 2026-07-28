@@ -137,8 +137,9 @@ body {
 .status.loading { color: var(--blue-700); }
 
 /* ---------- Map + patient info ---------- */
-.mini-map { width: 100%; height: 140px; display: block; }
-.ns-svg { width: 100%; height: 100%; display: block; }
+.mini-map { width: 100%; height: 180px; border-radius: 10px; border: 1px solid var(--line); overflow: hidden; z-index: 0; }
+.leaflet-container { font-family: 'Inter', sans-serif; background: #eef2f6; border-radius: 10px; }
+.leaflet-control-attribution { font-size: 9px; }
 .leaflet-container { font-family: 'Inter', sans-serif; background: var(--ocean); }
 
 .loc-info { margin-top: 16px; display: flex; flex-direction: column; gap: 3px; }
@@ -189,13 +190,13 @@ body {
 /* Progress bars per category (qualitative label, no numbers) */
 .bars-col { display: flex; flex-direction: column; }
 .score-bars { display: flex; flex-direction: column; gap: 12px; }
-.bar-row { display: grid; grid-template-columns: 185px 1fr 130px; align-items: center; gap: 12px; }
+.bar-row { display: grid; grid-template-columns: 185px 1fr 26px; align-items: center; gap: 12px; }
 .bar-label { font-size: 13px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 8px; }
 .bar-icon { width: 18px; height: 18px; display: inline-flex; flex-shrink: 0; }
 .bar-icon svg { width: 100%; height: 100%; }
 .bar-track { height: 12px; background: #eef2f6; border-radius: 8px; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 8px; transition: width 0.6s ease; }
-.bar-status { font-size: 12.5px; font-weight: 700; text-align: right; }
+.bar-grade { width: 24px; height: 24px; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; }
 
 /* Category cards — all 5 in one row (click to open modal) */
 .categories { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; align-content: start; }
@@ -206,20 +207,45 @@ body {
   transition: transform 0.12s, box-shadow 0.12s;
 }
 .cat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.cat-head { display: flex; align-items: center; justify-content: space-between; }
 .cat-icon { width: 26px; height: 26px; display: inline-flex; }
 .cat-icon svg { width: 100%; height: 100%; }
+.cat-grade { width: 30px; height: 30px; border-radius: 8px; color: #fff; font-size: 16px; font-weight: 700; display: grid; place-items: center; }
 .cat-name { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.25; }
-.cat-pill { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
-.pill-dot { width: 8px; height: 8px; border-radius: 50%; }
 .cat-more { font-size: 11px; font-weight: 600; color: var(--blue-700); text-transform: uppercase; letter-spacing: 0.4px; margin-top: auto; }
 
-/* What do these scores mean? */
+/* What do these grades mean? */
 .scores-explainer { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: #fafcfe; }
 .se-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
-.se-items { display: flex; flex-direction: column; gap: 7px; }
-.se-item { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); }
-.se-item b { color: var(--ink); font-weight: 600; }
-.se-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.se-items { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.se-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.se-grade { width: 22px; height: 22px; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; flex-shrink: 0; }
+
+/* Modal indicator rows: info button + relative-to-average badge */
+.ind-info { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; padding: 0; border: none; background: none; color: var(--muted); margin-left: 6px; cursor: pointer; }
+.ind-info:hover { color: var(--blue-700); }
+.ind-info svg { width: 15px; height: 15px; }
+.ind-label { display: inline-flex; align-items: center; }
+.ind-rel { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+
+/* Indicator detail popover card */
+.ind-popover {
+  position: fixed; z-index: 3000;
+  width: 268px; max-width: calc(100vw - 24px);
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(11, 30, 51, 0.22);
+  padding: 14px 16px;
+  animation: fadeInUp 0.15s ease both;
+}
+.ip-head { display: flex; align-items: center; gap: 9px; }
+.ip-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.ip-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+.ip-def { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 8px 0 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ip-rows { display: flex; flex-direction: column; gap: 7px; }
+.ip-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; }
+.ip-k { color: var(--muted); }
+.ip-v { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ip-avg { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* Social Prescribing — Phase 2 placeholder */
 .phase2-card { border: 1px dashed #c3d4e6; border-radius: 10px; padding: 14px 16px; background: repeating-linear-gradient(45deg,#f4f9fe,#f4f9fe 12px,#eef5fc 12px,#eef5fc 24px); }
