@@ -4,7 +4,9 @@ HealthLocate — Backend API (FastAPI)
 Address autocomplete via the NS Open Data SODA API, then a local geopandas
 spatial join: point -> Community Environ -> Health Atlas indicators.
 """
+import math
 import re
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -475,6 +477,109 @@ def profile(lat: float, lng: float, address: str = "", community: str = ""):
 def ns_outline():
     """Nova Scotia silhouette as GeoJSON (for the small locator map)."""
     return NS_OUTLINE
+
+
+# ---------- Phase 2: Social Prescribing (nearby services via OpenStreetMap) ----------
+# Primary + backups (osm.ch dropped — it returns empty results for NS).
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
+
+
+def _overpass(query):
+    """Run an Overpass query with mirror fallback + one retry pass. Returns elements or None."""
+    headers = {"User-Agent": "HealthLocate/1.0 (prototype; primary-care tool)"}
+    for attempt in range(2):
+        for url in OVERPASS_URLS:
+            try:
+                resp = requests.post(url, data={"data": query}, headers=headers, timeout=40)
+                if resp.status_code != 200:
+                    continue
+                payload = resp.json()
+                # 200 + empty + "remark" == the server is overloaded/rate-limited: try the next.
+                if not payload.get("elements") and payload.get("remark"):
+                    continue
+                return payload.get("elements", [])
+            except (requests.RequestException, ValueError):
+                continue
+        time.sleep(1.0)   # brief backoff before the second pass
+    return None
+
+# Overpass tag filters per service category
+CATEGORY_FILTERS = {
+    # Pharmacies are also tagged as a chemist shop, or a convenience store with a
+    # pharmacy counter (pharmacy=yes) — include all so none are missed.
+    "pharmacy":      ['["amenity"="pharmacy"]', '["shop"="chemist"]', '["pharmacy"="yes"]'],
+    "mental_health": ['["healthcare"="psychotherapist"]', '["healthcare"="counselling"]',
+                      '["amenity"="clinic"]["healthcare"="mental_health"]'],
+    "physiotherapy": ['["healthcare"="physiotherapist"]'],
+    "walkin":        ['["amenity"="clinic"]', '["amenity"="doctors"]'],
+    "laboratory":    ['["healthcare"="laboratory"]', '["amenity"="laboratory"]'],
+}
+
+
+def _haversine_km(lat1, lng1, lat2, lng2):
+    p = math.pi / 180
+    a = (0.5 - math.cos((lat2 - lat1) * p) / 2
+         + math.cos(lat1 * p) * math.cos(lat2 * p) * (1 - math.cos((lng2 - lng1) * p)) / 2)
+    return 2 * 6371 * math.asin(math.sqrt(a))
+
+
+@app.get("/api/services")
+def services(lat: float, lng: float, category: str, radius: int = 10000):
+    """Top-5 nearest services of a category around a point (OpenStreetMap / Overpass)."""
+    filters = CATEGORY_FILTERS.get(category)
+    if not filters:
+        raise HTTPException(status_code=400, detail="Unknown service category.")
+
+    body = ""
+    for f in filters:
+        body += f"node{f}(around:{radius},{lat},{lng});way{f}(around:{radius},{lat},{lng});"
+    query = f"[out:json][timeout:25];({body});out center tags;"
+
+    elements = _overpass(query)
+    if elements is None:
+        raise HTTPException(status_code=502, detail="Service lookup is temporarily unavailable.")
+
+    results, seen = [], set()
+    for el in elements:
+        tags = el.get("tags", {})
+        name = tags.get("name")
+        if not name:
+            continue
+        elat = el.get("lat") or (el.get("center") or {}).get("lat")
+        elng = el.get("lon") or (el.get("center") or {}).get("lon")
+        if elat is None or elng is None or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+
+        # Street address from addr:* tags, if present
+        hn, st, city = tags.get("addr:housenumber"), tags.get("addr:street"), tags.get("addr:city")
+        parts = []
+        if hn and st:
+            parts.append(f"{hn} {st}")
+        elif st:
+            parts.append(st)
+        if city:
+            parts.append(city)
+        address = ", ".join(parts) or None
+
+        website = tags.get("website") or tags.get("contact:website")
+
+        results.append({
+            "name": name,
+            "address": address,
+            "distance_km": round(_haversine_km(lat, lng, elat, elng), 1),
+            "phone": tags.get("phone") or tags.get("contact:phone"),
+            "hours": tags.get("opening_hours"),
+            "website": website,
+            "maps_url": f"https://www.google.com/maps/dir/?api=1&destination={elat},{elng}",
+        })
+
+    results.sort(key=lambda r: r["distance_km"])
+    return results[:5]
 
 
 # Serves the frontend (index.html, style.css, app.js) from the root.

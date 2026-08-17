@@ -13,6 +13,21 @@ const ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  // Social Prescribing service icons
+  // Pharmacy — pill + Rx cross
+  pharmacy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  // Mental health — head in profile with a caring heart
+  mental: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 21v-3.5a5.5 5.5 0 0 0 3.5-5A6 6 0 0 0 13 6.5 6.5 6.5 0 0 0 6.5 13c0 1.4.4 2.6 1 3.5V21"/><path d="M13.2 11.6c0-.9-.7-1.6-1.6-1.6-.6 0-1 .3-1.3.7-.3-.4-.7-.7-1.3-.7-.9 0-1.6.7-1.6 1.6 0 1.3 1.6 2.2 2.9 3.1 1.3-.9 2.9-1.8 2.9-3.1z"/></svg>',
+  // Physiotherapy — active body / stretching figure
+  physio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="M12 6.5v6"/><path d="M6.5 9L12 10l5.5-1"/><path d="M12 12.5l-3.5 8"/><path d="M12 12.5l3.5 8"/></svg>',
+  // Walk-in clinic — building with a medical cross
+  walkin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V7l8-4 8 4v14"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="2" y1="21" x2="22" y2="21"/></svg>',
+  // Laboratory — flask
+  lab: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.5 1.5 0 0 0 5.8 21h12.4a1.5 1.5 0 0 0 1.3-2.5L14 9V3"/><line x1="8" y1="15" x2="16" y2="15"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.7.6a2 2 0 0 1 1.7 2z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+  map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>',
 };
 function iconSvg(key) { return ICONS[key] || ""; }
 
@@ -78,8 +93,8 @@ function renderNsMap(lat, lng, ceGeometry) {
 // Draw the base map on load
 initMap();
 
-// Print / export the current profile
-document.getElementById("printBtn").addEventListener("click", () => window.print());
+// Print / export — open the report options first
+document.getElementById("printBtn").addEventListener("click", openPrintModal);
 
 // Collapse / expand panels
 document.querySelectorAll(".collapse-btn").forEach((btn) => {
@@ -233,6 +248,9 @@ function renderResult(data) {
   document.getElementById("resCeName").textContent = data.ce_name;
   renderCommunityInfo(data.community_info || []);
 
+  currentPatient = { lat: data.lat, lng: data.lng, name: `${data.community} · ${data.address}` };
+  resetServices();
+
   const categories = data.categories || [];
   // Guard each renderer so one failure doesn't blank the whole result
   try { renderNsMap(data.lat, data.lng, data.ce_geometry); } catch (e) { console.error("map:", e); }
@@ -242,32 +260,38 @@ function renderResult(data) {
   try { fillPrintSummary(data, categories); } catch (e) { console.error("print:", e); }
 }
 
-// Build the print-only summary sheet
+// Build the print-only report
 function fillPrintSummary(data, categories) {
-  document.getElementById("psCeName").textContent = data.ce_name;
-  document.getElementById("psLoc").textContent = `${data.community} · ${data.address}`;
-  const pop = (data.community_info.find((r) => r.label === "Population") || {}).value || data.population || "—";
-  document.getElementById("psPop").textContent = `Population: ${pop}  |  Census: 2021`;
+  // Patient line: DALHOUSIE · Halifax · 6281 Jennings St
+  document.getElementById("psName").textContent =
+    `${(data.ce_name || "").toUpperCase()} · ${data.community} · ${data.address}`;
 
-  // Overall conclusion at the top of the print
+  // Overall conclusion banner (dot + headline + sentence)
   const o = data.overall;
   const psOverall = document.getElementById("psOverall");
-  if (psOverall) {
-    psOverall.innerHTML = o
-      ? `<div class="ps-overall" style="color:${o.color}">${o.headline}</div><div class="ps-overall-sub">${o.sentence}</div>`
-      : "";
-  }
+  psOverall.innerHTML = o
+    ? `<div class="ps-banner" style="border-color:${o.color}">` +
+        `<span class="ps-banner-dot" style="background:${o.color}"></span>` +
+        `<div><div class="ps-banner-head" style="color:${o.color}">${o.headline}</div>` +
+        `<div class="ps-banner-sub">${o.sentence}</div></div>` +
+      `</div>`
+    : "";
 
+  // Category rows with progress bars + grade
   document.getElementById("psCats").innerHTML = categories
-    .map((c) =>
-      `<div class="ps-cat-row">` +
-        `<span class="ps-cat-name">${c.name}</span>` +
-        `<span class="ps-cat-status" style="color:${c.color}">Grade ${c.grade || "–"}</span>` +
-      `</div>`)
+    .map((c) => {
+      const pct = c.score != null
+        ? (c.score / 5) * 100
+        : ({ A: 88, B: 55, C: 28 }[c.grade] || 50);   // placeholder (Environment) from grade
+      return (
+        `<div class="ps-cat-row">` +
+          `<span class="ps-cat-name">${c.name}</span>` +
+          `<span class="ps-cat-bar"><span class="ps-cat-fill" style="width:${pct}%;background:${c.color}"></span></span>` +
+          `<span class="ps-cat-grade" style="color:${c.color}">${c.grade || "–"}</span>` +
+        `</div>`
+      );
+    })
     .join("");
-
-  document.getElementById("psFoot").textContent =
-    "Grades: A better than · B around · C below the Nova Scotia average · Apr 2025";
 }
 
 // Big at-a-glance conclusion box (the 5-second read for the doctor)
@@ -428,3 +452,183 @@ document.addEventListener("click", (e) => {
     closePopover();
   }
 });
+
+// ---------- Phase 2: tabs + Social Prescribing ----------
+let currentPatient = null;
+let activeServiceCat = null;
+
+// Tab switching
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
+    document.querySelectorAll(".tab-pane").forEach((p) =>
+      p.classList.toggle("hidden", p.id !== tab.dataset.tab)
+    );
+  });
+});
+
+// Service categories
+const SERVICE_CATS = [
+  { key: "pharmacy",      label: "Pharmacy",       icon: "pharmacy" },
+  { key: "mental_health", label: "Mental Health",  icon: "mental" },
+  { key: "physiotherapy", label: "Physiotherapy",  icon: "physio" },
+  { key: "walkin",        label: "Walk-in Clinic", icon: "walkin" },
+  { key: "laboratory",    label: "Laboratory",     icon: "lab" },
+];
+
+(function buildServiceButtons() {
+  const el = document.getElementById("serviceCats");
+  if (!el) return;
+  el.innerHTML = SERVICE_CATS.map(
+    (c) =>
+      `<button class="svc-cat" data-cat="${c.key}">` +
+        `<span class="svc-cat-icon">${iconSvg(c.icon)}</span>` +
+        `<span class="svc-cat-label">${c.label}</span>` +
+      `</button>`
+  ).join("");
+  el.querySelectorAll(".svc-cat").forEach((btn) => {
+    btn.addEventListener("click", () => selectServiceCategory(btn.dataset.cat, btn));
+  });
+})();
+
+function resetServices() {
+  activeServiceCat = null;
+  document.querySelectorAll(".svc-cat").forEach((b) => b.classList.remove("active"));
+  const res = document.getElementById("serviceResults");
+  if (res) res.innerHTML = "";
+}
+
+async function selectServiceCategory(cat, btn) {
+  const res = document.getElementById("serviceResults");
+  if (!currentPatient) {
+    res.innerHTML = '<p class="svc-msg">Search a patient address first (Community Profile tab).</p>';
+    return;
+  }
+  document.querySelectorAll(".svc-cat").forEach((b) => b.classList.toggle("active", b === btn));
+  activeServiceCat = cat;
+
+  res.innerHTML = '<p class="svc-msg"><span class="spinner"></span> Finding nearby services…</p>';
+  try {
+    const url = `/api/services?lat=${currentPatient.lat}&lng=${currentPatient.lng}&category=${cat}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error();
+    const items = await r.json();
+    renderServices(items);
+  } catch {
+    res.innerHTML = '<p class="svc-msg error">Could not load services right now. Please try again.</p>';
+  }
+}
+
+function renderServices(items) {
+  const res = document.getElementById("serviceResults");
+  if (!items.length) {
+    res.innerHTML = '<p class="svc-msg">No services found within 10 km.</p>';
+    return;
+  }
+  const catIcon = (SERVICE_CATS.find((c) => c.key === activeServiceCat) || {}).icon;
+
+  res.innerHTML = items
+    .map((s) => {
+      const meta = [`<span class="svc-dist">${s.distance_km} km away</span>`];
+      if (s.phone) meta.push(`<span class="svc-tag">${iconSvg("phone")}${s.phone}</span>`);
+      if (s.hours) meta.push(`<span class="svc-tag">${iconSvg("clock")}${s.hours}</span>`);
+
+      return (
+        `<div class="svc-item">` +
+          `<span class="svc-icon">${iconSvg(catIcon)}</span>` +
+          `<div class="svc-main">` +
+            `<div class="svc-name">${s.name}</div>` +
+            (s.address ? `<div class="svc-addr">${s.address}</div>` : "") +
+            `<div class="svc-meta">${meta.join("")}</div>` +
+            (s.website
+              ? `<a class="svc-web" href="${s.website}" target="_blank" rel="noopener">${iconSvg("link")} Website</a>`
+              : "") +
+          `</div>` +
+          `<a class="svc-map" href="${s.maps_url}" target="_blank" rel="noopener">${iconSvg("map")} Get directions</a>` +
+        `</div>`
+      );
+    })
+    .join("");
+}
+
+// ---------- Customizable print / export report ----------
+const printModal = document.getElementById("printModal");
+
+function openPrintModal() {
+  const optsEl = document.getElementById("pmServiceOpts");
+  const statusEl = document.getElementById("pmStatus");
+  statusEl.textContent = "";
+  statusEl.className = "pm-status";
+
+  if (!currentPatient) {
+    optsEl.innerHTML = "";
+    statusEl.textContent = "Search a patient address first (Community Profile tab).";
+    statusEl.className = "pm-status warn";
+    document.getElementById("pmGenerate").disabled = true;
+  } else {
+    document.getElementById("pmGenerate").disabled = false;
+    optsEl.innerHTML = SERVICE_CATS.map(
+      (c) =>
+        `<label class="pm-opt"><input type="checkbox" value="${c.key}" />` +
+        `<span class="pm-opt-icon">${iconSvg(c.icon)}</span>${c.label}</label>`
+    ).join("");
+  }
+  printModal.classList.remove("hidden");
+}
+
+function closePrintModal() { printModal.classList.add("hidden"); }
+document.getElementById("printModalClose").addEventListener("click", closePrintModal);
+document.getElementById("pmCancel").addEventListener("click", closePrintModal);
+printModal.querySelector(".modal-backdrop").addEventListener("click", closePrintModal);
+
+document.getElementById("pmGenerate").addEventListener("click", async () => {
+  const chosen = [...document.querySelectorAll("#pmServiceOpts input:checked")].map((c) => c.value);
+  const statusEl = document.getElementById("pmStatus");
+  const psServices = document.getElementById("psServices");
+  psServices.innerHTML = "";
+
+  if (chosen.length) {
+    statusEl.className = "pm-status";
+    statusEl.innerHTML = '<span class="spinner"></span> Gathering nearby services…';
+    try {
+      const groups = await Promise.all(
+        chosen.map(async (cat) => {
+          const r = await fetch(`/api/services?lat=${currentPatient.lat}&lng=${currentPatient.lng}&category=${cat}`);
+          const items = r.ok ? await r.json() : [];
+          return { cat, items: Array.isArray(items) ? items.slice(0, 4) : [] };
+        })
+      );
+      psServices.innerHTML = buildPrintServices(groups);
+    } catch {
+      statusEl.textContent = "Could not load some services — printing the profile only.";
+    }
+  }
+
+  statusEl.textContent = "";
+  closePrintModal();
+  setTimeout(() => window.print(), 150);
+});
+
+function buildPrintServices(groups) {
+  const catLabel = (k) => (SERVICE_CATS.find((c) => c.key === k) || {}).label || k;
+  let html = "";
+  for (const g of groups) {
+    if (!g.items.length) continue;
+    html += `<hr class="ps-hr" /><div class="ps-section">RECOMMENDED SERVICES — ${catLabel(g.cat)}</div>`;
+    html += '<div class="ps-svc-group">';
+    g.items.forEach((s, i) => {
+      html +=
+        `<div class="ps-svc-item">` +
+          `<span class="ps-svc-num">${i + 1}</span>` +
+          `<div class="ps-svc-body">` +
+            `<span class="ps-svc-name">${s.name}</span>` +
+            (s.address ? `<span class="ps-svc-addr">${s.address}</span>` : "") +
+          `</div>` +
+          `<span class="ps-svc-dist">${s.distance_km} km</span>` +
+          (s.phone ? `<span class="ps-svc-phone">${iconSvg("phone")}${s.phone}</span>` : "") +
+        `</div>`;
+    });
+    html += "</div>";
+  }
+  return html;
+}

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=35" />
+  <link rel="stylesheet" href="/style.css?v=40" />
 </head>
 <body>
   <header class="topbar">
@@ -86,6 +86,12 @@
         </button>
       </div>
       <div class="panel-body">
+        <div class="tabs">
+          <button class="tab active" data-tab="tabProfile">Community Profile</button>
+          <button class="tab" data-tab="tabPrescribing">Social Prescribing</button>
+        </div>
+
+        <div id="tabProfile" class="tab-pane">
         <div class="evidence-box">
           <span class="eb-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -122,11 +128,14 @@
             <div id="categories" class="categories"></div>
           </div>
 
-          <div class="phase2-card">
-            <span class="p2-badge">Coming next · Phase 2</span>
-            <div class="p2-title">Social Prescribing</div>
-            <p class="p2-text">Match patients to nearby community resources and services based on their community profile.</p>
-          </div>
+        </div>
+        </div><!-- /tabProfile -->
+
+        <div id="tabPrescribing" class="tab-pane hidden">
+          <h3 class="sp-title">Find nearby services for your patient</h3>
+          <p class="muted sp-sub">Choose a service type to find the closest options around the patient's address.</p>
+          <div id="serviceCats" class="service-cats"></div>
+          <div id="serviceResults" class="service-results"></div>
         </div>
       </div>
     </section>
@@ -158,23 +167,52 @@
     </div>
   </div>
 
-  <!-- Print-only summary (hidden on screen, shown only when printing) -->
+  <!-- Print-only report (hidden on screen, shown only when printing) -->
   <div id="printSummary" class="print-only">
-    <div class="ps-brand">HealthLocate — Patient Profile</div>
-    <div class="ps-patient">
-      <div class="ps-name"><span id="psCeName"></span></div>
-      <div class="ps-loc" id="psLoc"></div>
-      <div class="ps-pop" id="psPop"></div>
+    <div class="ps-top">
+      <span class="ps-brand">HealthLocate — Patient Profile</span>
+      <span class="ps-date">Apr 2025</span>
     </div>
+    <div class="ps-name" id="psName"></div>
     <hr class="ps-hr" />
     <div id="psOverall"></div>
+    <hr class="ps-hr" />
     <div class="ps-section">COMMUNITY PROFILE</div>
     <div id="psCats" class="ps-cats"></div>
+    <div id="psServices"></div>
     <hr class="ps-hr" />
-    <div class="ps-foot" id="psFoot"></div>
+    <div class="ps-foot">A = Better than NS average · B = Around · C = Below</div>
+  </div>
+
+  <!-- Print options: choose what to include in the report -->
+  <div id="printModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <button class="modal-close" id="printModalClose" title="Close">&times;</button>
+      <div class="pm-title">Generate patient report</div>
+      <p class="pm-sub">A clean one-page PDF you can print, save, or email to the patient.</p>
+
+      <div class="pm-block">
+        <div class="pm-included">
+          <span class="pm-check">✓</span>
+          <div><strong>Community Profile</strong><span class="pm-note">Always included — demographics, category grades &amp; summary</span></div>
+        </div>
+      </div>
+
+      <div class="pm-block">
+        <div class="pm-label">Add nearby services <span class="pm-optional">(optional)</span></div>
+        <div id="pmServiceOpts" class="pm-opts"></div>
+      </div>
+
+      <div id="pmStatus" class="pm-status"></div>
+      <div class="pm-actions">
+        <button id="pmCancel" class="btn-secondary" type="button">Cancel</button>
+        <button id="pmGenerate" class="btn-primary" type="button">Generate PDF</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/app.js?v=35"></script>
+  <script src="/app.js?v=40"></script>
 </body>
 </html>
