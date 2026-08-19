@@ -144,7 +144,7 @@ def compute_ns_outline(gdf, min_area=0.001):
     return shapely.geometry.mapping(geom)
 
 
-app = FastAPI(title="HealthLocate API")
+app = FastAPI(title="Naiia Health API")
 
 # Loaded once at startup (addresses are no longer bulk-downloaded)
 GDF, ATLAS = load_data()
